@@ -34,6 +34,14 @@ This Epitech Project has to be carried out in group of 3 to 4 students in 28 day
 Ray tracing is a technique used to generate realistic digital images by simulating the inverse path of light.<br>
 Our goal is to create a program able to generate an image from a file describing the scene.
 
+Our Project is a path tracer (meaning it is probabilistic, using Monte Carlo algorithm)
+Everything is done via maths, we don't need a GUI or anything because the way it works is it prints pixel (r, g, b) into lines of a .ppm files, which if read by an image reader, will read a coordinate = a pixel of color.
+<div style="display: flex; justify-content: space-around;">
+    <img src="raytracer_images/big_shadow.png" alt="Big Sphere Shadow" style="width: 40%;">
+    <img src="raytracer_images/10000_checker.png" alt="Checkerboard" style="width: 40%;">
+    <img src="raytracer_images/oriented_shadow.png" alt="Oriented Shadow" style="width: 40%;">
+</div>
+
 ## Features
 
 ### MUST
