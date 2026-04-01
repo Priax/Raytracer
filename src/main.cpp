@@ -49,6 +49,7 @@ int main(int argc, char **argv)
         np.parsePrimitives();
         np.parseLights();
         world = np.setDataPrim(world);
+        world = np.setDataModels(world);
         lights = np.setDataLights(lights);
         camera cam;
         cam = np.setDataCam(cam);

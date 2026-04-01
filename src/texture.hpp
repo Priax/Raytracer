@@ -11,6 +11,8 @@
 #include "utility.hpp"
 #include "color.hpp"
 #include "perlin.hpp"
+#include <SFML/Graphics.hpp>
+#include <string>
 
 /**
  * @brief Abstract base class for textures.
@@ -110,6 +112,22 @@ public:
 private:
     perlin noise; /**< Perlin noise generator. */
     double scale; /**< Scale of the noise pattern. */
+};
+
+/**
+ * @brief Texture loaded from an image file (PNG, JPG, etc.).
+ */
+class image_texture : public texture {
+public:
+    image_texture(const std::string& filename);
+
+    color value(double u, double v, const point3& p) const override;
+
+private:
+    sf::Image image;
+    unsigned int img_width  = 0;
+    unsigned int img_height = 0;
+    bool loaded = false;
 };
 
 #endif

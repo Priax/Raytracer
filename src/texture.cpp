@@ -43,3 +43,35 @@ color noise_texture::value(double u, double v, const point3& p) const {
     //return color(1,1,1) * noise.turb(p, 7); //! Avec turbulence
     return color(.5, .5, .5) * (1 + sin(scale * p.z() + 10 * noise.turb(p, 7))); //! Turbulence + scaling
 }
+
+// Image texture
+image_texture::image_texture(const std::string& filename)
+{
+    loaded = image.loadFromFile(filename);
+    if (loaded) {
+        img_width  = image.getSize().x;
+        img_height = image.getSize().y;
+    } else {
+        std::cerr << "image_texture: could not load " << filename << "\n";
+    }
+}
+
+color image_texture::value(double u, double v, const point3& p) const
+{
+    (void)p;
+    if (!loaded || img_width == 0 || img_height == 0)
+        return color(1, 0, 1); // magenta = missing texture
+
+    u = std::fmod(u, 1.0); if (u < 0) u += 1.0;
+    v = std::fmod(v, 1.0); if (v < 0) v += 1.0;
+    v = 1.0 - v; // flip vertically (image origin is top-left)
+
+    unsigned int px = static_cast<unsigned int>(u * img_width);
+    unsigned int py = static_cast<unsigned int>(v * img_height);
+    if (px >= img_width)  px = img_width  - 1;
+    if (py >= img_height) py = img_height - 1;
+
+    sf::Color c = image.getPixel(px, py);
+    static const double scale = 1.0 / 255.0;
+    return color(c.r * scale, c.g * scale, c.b * scale);
+}

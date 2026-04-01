@@ -19,6 +19,9 @@
 #include "primitives/pyramide.hpp"
 #include "error_parser.hpp"
 #include "camera.hpp"
+#include "bvh.hpp"
+#include "obj_loader.hpp"
+#include "texture.hpp"
 
 /**
  * @brief Base class representing a primitive shape.
@@ -116,30 +119,24 @@ public:
 /**
  * @brief Class representing a plane primitive shape.
  */
-class pPlanes {
+class pPlanes : public IPrimitive {
 public:
-    double position_x; /**< X-coordinate of the position */
-    double position_y; /**< Y-coordinate of the position */
-    double position_z; /**< Z-coordinate of the position */
     double dir_x; /**< X-coordinate of the direction */
     double dir_y; /**< Y-coordinate of the direction */
     double dir_z; /**< Z-coordinate of the direction */
     double axis_x; /**< X-coordinate of the axis */
     double axis_y; /**< Y-coordinate of the axis */
     double axis_z; /**< Z-coordinate of the axis */
-    std::string material; /**< Material of the plane */
-    std::string rotation_type = "y"; /**< Rotation type */
-    double color_r; /**< Red component of the color */
-    double color_g; /**< Green component of the color */
-    double color_b; /**< Blue component of the color */
-    double color_r2; /**< Secondary red component of the color */
-    double color_g2; /**< Secondary green component of the color */
-    double color_b2; /**< Secondary blue component of the color */
-    double fuzz; /**< Fuzziness of the plane */
-    double rotation_angle = 0; /**< Rotation angle */
-    double translate_x = 0; /**< X-coordinate translation */
-    double translate_y = 0; /**< Y-coordinate translation */
-    double translate_z = 0; /**< Z-coordinate translation */
+};
+
+/**
+ * @brief Class representing a 3D model loaded from an OBJ file.
+ */
+class pModel : public IPrimitive {
+public:
+    std::string filename;       /**< Path to the .obj file */
+    std::string texture_file;   /**< Optional path to a texture image */
+    double scale = 1.0;         /**< Uniform scale factor */
 };
 
 /**
@@ -164,7 +161,8 @@ public:
     std::vector<pPlanes> _planes; /**< Collection of planes */
     std::vector<pCube> _cubes; /**< Collection of cubes */
     std::vector<pTri> _triangles; /**< Collection of triangles */
-    std::vector<pPyra> _pyramids; /**< Collection of pyramids */
+    std::vector<pPyra>  _pyramids; /**< Collection of pyramids */
+    std::vector<pModel> _models;   /**< Collection of 3D models */
 };
 
 /**
@@ -226,6 +224,18 @@ public:
      * @brief Parses the pyramid shapes from the configuration.
      */
     void parsePyramids();
+
+    /**
+     * @brief Parses 3D model entries from the configuration.
+     */
+    void parseModels();
+
+    /**
+     * @brief Adds loaded models to the world as BVH-accelerated meshes.
+     * @param world The hittable_list to add models to.
+     * @return Updated hittable_list.
+     */
+    hittable_list setDataModels(hittable_list world);
 
     /**
      * @brief Parses the light sources from the configuration.
@@ -371,60 +381,12 @@ public:
     std::shared_ptr<lambertian> createTexture(color color1, color color2, double scale);
 
     /**
-     * @brief Creates a material for a shape.
-     * @param type Type of the shape
-     * @param sphere Sphere data
+     * @brief Creates a material for any primitive shape.
+     * @param type Material type string
+     * @param prim Primitive data (color, fuzz, etc.)
      * @return Shared pointer to the created material
      */
-    std::shared_ptr<material> createShapeMat(std::string type, pSphere sphere);
-
-    /**
-     * @brief Creates a material for a shape.
-     * @param type Type of the shape
-     * @param pyramid Pyramid data
-     * @return Shared pointer to the created material
-     */
-    std::shared_ptr<material> createShapeMat(std::string type, pPyra pyramid);
-
-    /**
-     * @brief Creates a material for a shape.
-     * @param type Type of the shape
-     * @param cone Cone data
-     * @return Shared pointer to the created material
-     */
-    std::shared_ptr<material> createShapeMat(std::string type, pCone cone);
-
-    /**
-     * @brief Creates a material for a shape.
-     * @param type Type of the shape
-     * @param cylinder Cylinder data
-     * @return Shared pointer to the created material
-     */
-    std::shared_ptr<material> createShapeMat(std::string type, pCyli cylinder);
-
-    /**
-     * @brief Creates a material for a shape.
-     * @param type Type of the shape
-     * @param planes Plane data
-     * @return Shared pointer to the created material
-     */
-    std::shared_ptr<material> createShapeMat(std::string type, pPlanes planes);
-
-    /**
-     * @brief Creates a material for a shape.
-     * @param type Type of the shape
-     * @param cube Cube data
-     * @return Shared pointer to the created material
-     */
-    std::shared_ptr<material> createShapeMat(std::string type, pCube cube);
-
-    /**
-     * @brief Creates a material for a shape.
-     * @param type Type of the shape
-     * @param triangle Triangle data
-     * @return Shared pointer to the created material
-     */
-    std::shared_ptr<material> createShapeMat(std::string type, pTri triangle);
+    std::shared_ptr<material> createShapeMat(std::string type, const IPrimitive& prim);
 
     /**
      * @brief Parses a sphere light source from the configuration.
@@ -476,6 +438,10 @@ public:
     size_t getCameraSize(std::string element);
 
 private:
+    std::shared_ptr<hittable> applyTransform(std::shared_ptr<hittable> shape, double rotation, const std::string& rotation_type, const vec3& translation);
+    void parseTransform(const libconfig::Setting& s, IPrimitive& prim);
+    void parseColor(const libconfig::Setting& s, IPrimitive& prim);
+
     libconfig::Config &_cfg; /**< Reference to the libconfig configuration */
     libconfig::Setting &_root; /**< Reference to the root setting */
     std::vector<size_t> _cameraRes; /**< Camera resolution */

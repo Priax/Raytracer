@@ -119,3 +119,75 @@ Test(ThreadTest, withoutQueue)
     std::clog.clear();
     cr_assert(colorsQueue->empty());
 }
+
+// Regression: camera rotation block was checking "position" instead of "rotation"
+Test(ParsingTest, CameraRotation)
+{
+    libconfig::Config config;
+    std::string FilePath = "tests/cfg_file/camera_rotation.cfg";
+
+    config.readFile(FilePath);
+    newParser np(config);
+    np.parseCamera();
+    camera cam;
+    cam = np.setDataCam(cam);
+    // vup is set from _cameraRot; rotation = {x=0, y=1, z=0}
+    cr_assert_float_eq(cam.vup.y(), 1.0, 1e-6);
+}
+
+// Regression: getCameraSize used compare() which returns 0 (falsy) on match
+Test(ParsingTest, getCameraSize_correct)
+{
+    libconfig::Config config;
+    std::string FilePath = "tests/cfg_file/quad_and_ball.cfg";
+
+    config.readFile(FilePath);
+    newParser np(config);
+    np.parseCamera();
+    cr_assert_eq(np.getCameraSize("width"), 500);
+    cr_assert_eq(np.getCameraSize("height"), 300);
+    cr_assert_eq(np.getCameraSize("unknown"), 0);
+}
+
+// Regression: cylinders with "noise" material were not pushed to the list
+Test(ParsingTest, CylinderNoiseMaterialParsed)
+{
+    libconfig::Config config;
+    std::string FilePath = "tests/cfg_file/noise_cylinder.cfg";
+
+    config.readFile(FilePath);
+    newParser np(config);
+    np.parsePrimitives();
+    hittable_list world;
+    // Both cylinders (noise + solid) must be in the world, not just the solid one
+    world = np.setDataPrim(world);
+    cr_assert_eq(world.objects.size(), 2);
+}
+
+Test(ParsingTest, AllPrimitiveTypes)
+{
+    libconfig::Config config;
+    std::string FilePath = "tests/cfg_file/all_primitives.cfg";
+
+    config.readFile(FilePath);
+    newParser np(config);
+    np.parsePrimitives();
+    hittable_list world;
+    world = np.setDataPrim(world);
+    // 2 spheres + 1 cylinder + 1 cone + 1 plane + 2 triangles + 1 cube + 1 pyramid = 9
+    cr_assert_eq(world.objects.size(), 9);
+}
+
+Test(ParsingTest, LightSphereColorNotFromCone)
+{
+    libconfig::Config config;
+    std::string FilePath = "tests/cfg_file/light_colors.cfg";
+
+    config.readFile(FilePath);
+    newParser np(config);
+    np.parseLights();
+    hittable_list lights;
+    // Should not crash or mix up colors between sphere/cylinder/cone lights
+    cr_assert_no_throw(lights = np.setDataLights(lights), std::exception);
+    cr_assert_eq(lights.objects.size(), 3);
+}

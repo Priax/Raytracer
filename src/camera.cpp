@@ -7,45 +7,60 @@
 
 #include "camera.hpp"
 #include "utility.hpp"
+#include <vector>
+#include <atomic>
 
-// #pragma omp paralel for
 void camera::render(const hittable& world, const hittable &lights) {
     initialize();
 
-    std::cout << "P3\n" << image_width << ' ' << image_height << "\n255\n";
+    std::vector<color> buffer(image_height * image_width);
+    std::vector<bool> row_ready(image_height, false);
+    std::atomic<int> rows_done(0);
+    int next_row_to_push = 0;
+    std::mutex push_mutex;
 
-    int total_lines = image_height * image_width;
-    int lines_rendered = 0;
-    int percentage = 0;
-    const int progress_width = 50;
-
+    std::clog << "Rendering " << image_width << "x" << image_height
+              << " spp=" << sqrt_spp * sqrt_spp << " depth=" << max_depth << "\n" << std::flush;
+    #pragma omp parallel for schedule(dynamic, 1)
     for (int j = 0; j < image_height; j++) {
-        std::clog << "\r[\033[32m";
-        int progress = (j * image_width) * progress_width / total_lines;
-        for (int i = 0; i < progress_width; ++i) {
-            if (i < progress) std::clog << "=";
-            else std::clog << " ";
-        }
-        std::clog << "\033[0m] " << percentage << "% " << std::flush;
-
         for (int i = 0; i < image_width; i++) {
             color pixel_color(0, 0, 0);
-            //? Anti aliasing
             for (int s_j = 0; s_j < sqrt_spp; s_j++) {
                 for (int s_i = 0; s_i < sqrt_spp; s_i++) {
                     ray r = get_ray(i, j, s_i, s_j);
                     pixel_color += ray_color(r, max_depth, world, lights);
                 }
             }
-            color::write_color(std::cout, pixel_samples_scale * pixel_color, _colorsQueue, _colorsQueueMutex);
-            ++lines_rendered;
-            percentage = (lines_rendered * 100) / total_lines;
+            buffer[j * image_width + i] = pixel_samples_scale * pixel_color;
         }
+        {
+            std::lock_guard<std::mutex> lock(push_mutex);
+            row_ready[j] = true;
+            while (next_row_to_push < image_height && row_ready[next_row_to_push]) {
+                if (_colorsQueue != nullptr) {
+                    for (int i = 0; i < image_width; i++) {
+                        const color& c = buffer[next_row_to_push * image_width + i];
+                        auto r = c.x(); if (r != r) r = 0.0;
+                        auto g = c.y(); if (g != g) g = 0.0;
+                        auto b = c.z(); if (b != b) b = 0.0;
+                        r = std::sqrt(std::max(0.0, std::min(r, 0.999)));
+                        g = std::sqrt(std::max(0.0, std::min(g, 0.999)));
+                        b = std::sqrt(std::max(0.0, std::min(b, 0.999)));
+                        _colorsQueue->push_back(sf::Color(int(256 * r), int(256 * g), int(256 * b)));
+                    }
+                }
+                next_row_to_push++;
+            }
+        }
+        int done = ++rows_done;
+        std::clog << "\rRendering... " << (done * 100 / image_height) << "%" << std::flush;
     }
 
-    std::clog << "\r[\033[32m";
-    for (int i = 0; i < progress_width; ++i) std::clog << "=";
-    std::clog << "\033[0m] \033[32m100% Done.\033[0m                 \n";
+    std::cout << "P3\n" << image_width << ' ' << image_height << "\n255\n";
+    for (const auto& c : buffer)
+        color::write_color(std::cout, c, nullptr, nullptr);
+
+    std::clog << "\r\033[32mDone.\033[0m                          \n";
 }
 
 void camera::initialize()

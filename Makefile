@@ -36,6 +36,8 @@ SRC = 	src/main.cpp 				\
 		src/utility.cpp 			\
 		src/vec3.cpp 				\
 		src/vecN.cpp 				\
+		src/bvh.cpp 				\
+		src/obj_loader.cpp 			\
 
 TEST_SRC =	src/primitives/quad.cpp 	\
 			src/primitives/sphere.cpp 	\
@@ -63,7 +65,7 @@ TEST_SRC =	src/primitives/quad.cpp 	\
 			src/vecN.cpp 				\
 			tests/tests.cpp
 
-GCC_PARAM = -W -Wall -Wextra -g3
+GCC_PARAM = -W -Wall -Wextra -O2 -fopenmp
 
 LAST_FLAG = -ansi -pedantic -Werror
 

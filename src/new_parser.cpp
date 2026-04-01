@@ -11,6 +11,44 @@ newParser::newParser(libconfig::Config &config) : _cfg(config), _root(_cfg.getRo
 {
 }
 
+std::shared_ptr<hittable> newParser::applyTransform(std::shared_ptr<hittable> shape, double rotation, const std::string& rotation_type, const vec3& translation)
+{
+    if (rotation_type == "x")
+        shape = std::make_shared<rotate_x>(shape, rotation);
+    else if (rotation_type == "y")
+        shape = std::make_shared<rotate_y>(shape, rotation);
+    else
+        shape = std::make_shared<rotate_z>(shape, rotation);
+    return std::make_shared<translate>(shape, translation);
+}
+
+void newParser::parseTransform(const libconfig::Setting& s, IPrimitive& prim)
+{
+    if (s.exists("rotation")) {
+        s["rotation"].lookupValue("angle", prim.rotation_angle);
+        s["rotation"].lookupValue("type", prim.rotation_type);
+    }
+    if (s.exists("translation")) {
+        s["translation"].lookupValue("x", prim.translate_x);
+        s["translation"].lookupValue("y", prim.translate_y);
+        s["translation"].lookupValue("z", prim.translate_z);
+    }
+}
+
+void newParser::parseColor(const libconfig::Setting& s, IPrimitive& prim)
+{
+    if (prim.material == "noise" || prim.material == "glass")
+        return;
+    if (prim.material == "checker") {
+        s["color2"].lookupValue("r", prim.color_r2);
+        s["color2"].lookupValue("g", prim.color_g2);
+        s["color2"].lookupValue("b", prim.color_b2);
+    }
+    s["color"].lookupValue("r", prim.color_r);
+    s["color"].lookupValue("g", prim.color_g);
+    s["color"].lookupValue("b", prim.color_b);
+}
+
 void newParser::parseCamera(void)
 {
     int value;
@@ -37,7 +75,7 @@ void newParser::parseCamera(void)
         for (int i = 0; i < 3; i++)
             _cameraPos.push_back(0.0);
     }
-    if (camera.exists("position")) {
+    if (camera.exists("rotation")) {
         camera["rotation"].lookupValue("x", readFloat);
         _cameraRot.insert(_cameraRot.begin(), readFloat);
         camera["rotation"].lookupValue("y", readFloat);
@@ -46,7 +84,7 @@ void newParser::parseCamera(void)
         _cameraRot.push_back(readFloat);
     } else {
         for (int i = 0; i < 3; i++)
-            _cameraPos.push_back(0.0);
+            _cameraRot.push_back(0.0);
     }
     if (camera.exists("fieldOfView")) {
         camera["fieldOfView"].lookupValue("angle", readFloat);
@@ -63,7 +101,7 @@ void newParser::parseCamera(void)
         _BGColor.push_back(readFloat);
     } else {
         for (int i = 0; i < 3; i++)
-            _cameraPos.push_back(0.0);
+            _BGColor.push_back(0.0);
     }
     if (camera.exists("origin")) {
         camera["origin"].lookupValue("x", readFloat);
@@ -102,31 +140,14 @@ void newParser::parseSpheres(void)
     pSphere _sphere;
     const libconfig::Setting &sph = _root["primitives"]["spheres"];
     for (int i = 0; i != sph.getLength(); i++) {
-        if (sph[i].exists("rotation")) {
-            sph[i]["rotation"].lookupValue("type", _sphere.rotation_type);
-            sph[i]["rotation"].lookupValue("angle", _sphere.rotation_angle);
-        }
-        if (sph[i].exists("translation")) {
-            sph[i]["translation"].lookupValue("x", _sphere.translate_x);
-            sph[i]["translation"].lookupValue("y", _sphere.translate_y);
-            sph[i]["translation"].lookupValue("z", _sphere.translate_z);
-        }
+        parseTransform(sph[i], _sphere);
         sph[i].lookupValue("x", _sphere.position_x);
         sph[i].lookupValue("y", _sphere.position_y);
         sph[i].lookupValue("z", _sphere.position_z);
         sph[i].lookupValue("r", _sphere.radius);
         sph[i].lookupValue("material", _sphere.material);
-        if (_sphere.material != "noise") {
-            if (_sphere.material == "checker") {
-                sph[i]["color2"].lookupValue("r", _sphere.color_r2);
-                sph[i]["color2"].lookupValue("g", _sphere.color_g2);
-                sph[i]["color2"].lookupValue("b", _sphere.color_b2);
-            }
-            sph[i]["color"].lookupValue("r", _sphere.color_r);
-            sph[i]["color"].lookupValue("g", _sphere.color_g);
-            sph[i]["color"].lookupValue("b", _sphere.color_b);
-        }
         sph[i].lookupValue("fuzz", _sphere.fuzz);
+        parseColor(sph[i], _sphere);
         _primitives._spheres.push_back(_sphere);
     }
 }
@@ -136,15 +157,7 @@ void newParser::parseCone(std::string name)
     const libconfig::Setting &cone = _root["primitives"][name];
     for (int i = 0; i != cone.getLength(); i++) {
         _cone.type = name;
-        if (cone[i].exists("rotation")) {
-            cone[i]["rotation"].lookupValue("angle", _cone.rotation_angle);
-            cone[i]["rotation"].lookupValue("type", _cone.rotation_type);
-        }
-        if (cone[i].exists("translation")) {
-            cone[i]["translation"].lookupValue("x", _cone.translate_x);
-            cone[i]["translation"].lookupValue("y", _cone.translate_y);
-            cone[i]["translation"].lookupValue("z", _cone.translate_z);
-        }
+        parseTransform(cone[i], _cone);
         cone[i].lookupValue("x", _cone.position_x);
         cone[i].lookupValue("y", _cone.position_y);
         cone[i].lookupValue("z", _cone.position_z);
@@ -153,16 +166,7 @@ void newParser::parseCone(std::string name)
         cone[i].lookupValue("fuzz", _cone.fuzz);
         cone[i].lookupValue("shape", _cone.type);
         cone[i].lookupValue("material", _cone.material);
-        if (_cone.material != "noise") {
-            if (_cone.material == "checker") {
-                cone[i]["color2"].lookupValue("r", _cone.color_r2);
-                cone[i]["color2"].lookupValue("g", _cone.color_g2);
-                cone[i]["color2"].lookupValue("b", _cone.color_b2);
-            }
-            cone[i]["color"].lookupValue("r", _cone.color_r);
-            cone[i]["color"].lookupValue("g", _cone.color_g);
-            cone[i]["color"].lookupValue("b", _cone.color_b);
-        }
+        parseColor(cone[i], _cone);
         _primitives._cone.push_back(_cone);
     }
 }
@@ -173,15 +177,7 @@ void newParser::parseCubes(void)
     const libconfig::Setting &cub = _root["primitives"]["cubes"];
 
     for (int i = 0; i != cub.getLength(); i++) {
-        if (cub[i].exists("rotation")) {
-            cub[i]["rotation"].lookupValue("angle", cube.rotation_angle);
-            cub[i]["rotation"].lookupValue("type", cube.rotation_type);
-        }
-        if (cub[i].exists("translation")) {
-            cub[i]["translation"].lookupValue("x", cube.translate_x);
-            cub[i]["translation"].lookupValue("y", cube.translate_y);
-            cub[i]["translation"].lookupValue("z", cube.translate_z);
-        }
+        parseTransform(cub[i], cube);
         cub[i]["base"].lookupValue("x", cube.position_x);
         cub[i]["base"].lookupValue("y", cube.position_y);
         cub[i]["base"].lookupValue("z", cube.position_z);
@@ -190,16 +186,7 @@ void newParser::parseCubes(void)
         cub[i]["top"].lookupValue("z", cube.top_z);
         cub[i].lookupValue("material", cube.material);
         cub[i].lookupValue("fuzz", cube.fuzz);
-        if (cube.material != "noise") {
-            if (cube.material == "checker") {
-                cub[i]["color2"].lookupValue("r", cube.color_r2);
-                cub[i]["color2"].lookupValue("g", cube.color_g2);
-                cub[i]["color2"].lookupValue("b", cube.color_b2);
-            }
-            cub[i]["color"].lookupValue("r", cube.color_r);
-            cub[i]["color"].lookupValue("g", cube.color_g);
-            cub[i]["color"].lookupValue("b", cube.color_b);
-        }
+        parseColor(cub[i], cube);
         _primitives._cubes.push_back(cube);
     }
 }
@@ -210,15 +197,7 @@ void newParser::parseTriangles(void)
     const libconfig::Setting &tri = _root["primitives"]["triangles"];
 
     for (int i = 0; i != tri.getLength(); i++) {
-        if (tri[i].exists("rotation")) {
-            tri[i]["rotation"].lookupValue("angle", triangle.rotation_angle);
-            tri[i]["rotation"].lookupValue("type", triangle.rotation_type);
-        }
-        if (tri[i].exists("translation")) {
-            tri[i]["translation"].lookupValue("x", triangle.translate_x);
-            tri[i]["translation"].lookupValue("y", triangle.translate_y);
-            tri[i]["translation"].lookupValue("z", triangle.translate_z);
-        }
+        parseTransform(tri[i], triangle);
         tri[i]["top"].lookupValue("x", triangle.position_x);
         tri[i]["top"].lookupValue("y", triangle.position_y);
         tri[i]["top"].lookupValue("z", triangle.position_z);
@@ -230,16 +209,7 @@ void newParser::parseTriangles(void)
         tri[i]["right"].lookupValue("z", triangle.right_z);
         tri[i].lookupValue("material", triangle.material);
         tri[i].lookupValue("fuzz", triangle.fuzz);
-        if (triangle.material != "noise") {
-            if (triangle.material == "checker") {
-                tri[i]["color2"].lookupValue("r", triangle.color_r2);
-                tri[i]["color2"].lookupValue("g", triangle.color_g2);
-                tri[i]["color2"].lookupValue("b", triangle.color_b2);
-            }
-            tri[i]["color"].lookupValue("r", triangle.color_r);
-            tri[i]["color"].lookupValue("g", triangle.color_g);
-            tri[i]["color"].lookupValue("b", triangle.color_b);
-        }
+        parseColor(tri[i], triangle);
         _primitives._triangles.push_back(triangle);
     }
 }
@@ -250,15 +220,7 @@ void newParser::parsePyramids(void)
     const libconfig::Setting &pyramid = _root["primitives"]["pyramids"];
 
     for (int i = 0; i != pyramid.getLength(); i++) {
-        if (pyramid[i].exists("rotation")) {
-            pyramid[i]["rotation"].lookupValue("angle", new_pyramid.rotation_angle);
-            pyramid[i]["rotation"].lookupValue("type", new_pyramid.rotation_type);
-        }
-        if (pyramid[i].exists("translation")) {
-            pyramid[i]["translation"].lookupValue("x", new_pyramid.translate_x);
-            pyramid[i]["translation"].lookupValue("y", new_pyramid.translate_y);
-            pyramid[i]["translation"].lookupValue("z", new_pyramid.translate_z);
-        }
+        parseTransform(pyramid[i], new_pyramid);
         pyramid[i]["top"].lookupValue("x", new_pyramid.position_x);
         pyramid[i]["top"].lookupValue("y", new_pyramid.position_y);
         pyramid[i]["top"].lookupValue("z", new_pyramid.position_z);
@@ -276,16 +238,7 @@ void newParser::parsePyramids(void)
         pyramid[i]["basis4"].lookupValue("z", new_pyramid.basis_4_z);
         pyramid[i].lookupValue("material", new_pyramid.material);
         pyramid[i].lookupValue("fuzz", new_pyramid.fuzz);
-        if (new_pyramid.material != "noise") {
-            if (new_pyramid.material == "checker") {
-                pyramid[i]["color2"].lookupValue("r", new_pyramid.color_r2);
-                pyramid[i]["color2"].lookupValue("g", new_pyramid.color_g2);
-                pyramid[i]["color2"].lookupValue("b", new_pyramid.color_b2);
-            }
-            pyramid[i]["color"].lookupValue("r", new_pyramid.color_r);
-            pyramid[i]["color"].lookupValue("g", new_pyramid.color_g);
-            pyramid[i]["color"].lookupValue("b", new_pyramid.color_b);
-        }
+        parseColor(pyramid[i], new_pyramid);
         _primitives._pyramids.push_back(new_pyramid);
     }
 }
@@ -296,15 +249,7 @@ void newParser::parseCylinder(std::string name)
     const libconfig::Setting &cylinder = _root["primitives"][name];
     for (int i = 0; i != cylinder.getLength(); i++) {
         _cylinder.type = name;
-        if (cylinder[i].exists("rotation")) {
-            cylinder[i]["rotation"].lookupValue("angle", _cylinder.rotation_angle);
-            cylinder[i]["rotation"].lookupValue("type", _cylinder.rotation_type);
-        }
-        if (cylinder[i].exists("translation")) {
-            cylinder[i]["translation"].lookupValue("x", _cylinder.translate_x);
-            cylinder[i]["translation"].lookupValue("y", _cylinder.translate_y);
-            cylinder[i]["translation"].lookupValue("z", _cylinder.translate_z);
-        }
+        parseTransform(cylinder[i], _cylinder);
         cylinder[i]["base"].lookupValue("x", _cylinder.base_x);
         cylinder[i]["base"].lookupValue("y", _cylinder.base_y);
         cylinder[i]["base"].lookupValue("z", _cylinder.base_z);
@@ -314,17 +259,8 @@ void newParser::parseCylinder(std::string name)
         cylinder[i].lookupValue("r", _cylinder.radius);
         cylinder[i].lookupValue("material", _cylinder.material);
         cylinder[i].lookupValue("fuzz", _cylinder.fuzz);
-        if (_cylinder.material != "noise") {
-            if (_cylinder.material == "checker") {
-                cylinder[i]["color2"].lookupValue("r", _cylinder.color_r2);
-                cylinder[i]["color2"].lookupValue("g", _cylinder.color_g2);
-                cylinder[i]["color2"].lookupValue("b", _cylinder.color_b2);
-            }
-            cylinder[i]["color"].lookupValue("r", _cylinder.color_r);
-            cylinder[i]["color"].lookupValue("g", _cylinder.color_g);
-            cylinder[i]["color"].lookupValue("b", _cylinder.color_b);
-            _primitives._cylinders.push_back(_cylinder);
-        }
+        parseColor(cylinder[i], _cylinder);
+        _primitives._cylinders.push_back(_cylinder);
     }
 }
 
@@ -334,15 +270,7 @@ void newParser::parsePlanes(void)
     const libconfig::Setting &plan = _root["primitives"]["planes"];
 
     for (int i = 0; i != plan.getLength(); i++) {
-        if (plan[i].exists("rotation")) {
-            plan[i]["rotation"].lookupValue("angle", plane.rotation_angle);
-            plan[i]["rotation"].lookupValue("type", plane.rotation_type);
-        }
-        if (plan[i].exists("translation")) {
-            plan[i]["translation"].lookupValue("x", plane.translate_x);
-            plan[i]["translation"].lookupValue("y", plane.translate_y);
-            plan[i]["translation"].lookupValue("z", plane.translate_z);
-        }
+        parseTransform(plan[i], plane);
         plan[i]["pos"].lookupValue("x", plane.position_x);
         plan[i]["pos"].lookupValue("y", plane.position_y);
         plan[i]["pos"].lookupValue("z", plane.position_z);
@@ -353,16 +281,7 @@ void newParser::parsePlanes(void)
         plan[i]["axis"].lookupValue("y", plane.axis_y);
         plan[i]["axis"].lookupValue("z", plane.axis_z);
         plan[i].lookupValue("material", plane.material);
-        if (plane.material != "noise") {
-            if (plane.material == "checker") {
-                plan[i]["color2"].lookupValue("r", plane.color_r2);
-                plan[i]["color2"].lookupValue("g", plane.color_g2);
-                plan[i]["color2"].lookupValue("b", plane.color_b2);
-            }
-            plan[i]["color"].lookupValue("r", plane.color_r);
-            plan[i]["color"].lookupValue("g", plane.color_g);
-            plan[i]["color"].lookupValue("b", plane.color_b);
-        }
+        parseColor(plan[i], plane);
         _primitives._planes.push_back(plane);
     }
 }
@@ -473,6 +392,9 @@ void newParser::parsePrimitives(void)
         if (name == "pyramids") {
             parsePyramids();
         }
+        if (name == "models") {
+            parseModels();
+        }
     }
 }
 
@@ -569,9 +491,9 @@ camera newParser::setDataCam(camera cam)
 
 size_t newParser::getCameraSize(std::string element)
 {
-    if (element.compare("height"))
+    if (element == "width")
         return _cameraRes[0];
-    if (element.compare("width"))
+    if (element == "height")
         return _cameraRes[1];
     return 0;
 }
@@ -584,7 +506,7 @@ hittable_list newParser::setDataLights(hittable_list lights)
                 point3(_lights[i]._position_cylinder.base_x, _lights[i]._position_cylinder.base_y, _lights[i]._position_cylinder.base_z),
                 point3(_lights[i]._position_cylinder.position_x, _lights[i]._position_cylinder.position_y, _lights[i]._position_cylinder.position_z),
                 _lights[i]._position_cylinder.radius, std::make_shared<diffuse_light>(color(_lights[i]._position_cylinder.color_r,
-                _lights[i]._position_cylinder.color_g, _lights[i]._position_cylinder.color_g))));
+                _lights[i]._position_cylinder.color_g, _lights[i]._position_cylinder.color_b))));
         }
         if (!_lights[i]._position_cone.type.empty()) {
             lights.add(std::make_shared<Cone>(point3(_lights[i]._position_cone.position_x, _lights[i]._position_cone.position_y, _lights[i]._position_cone.position_z),
@@ -593,7 +515,7 @@ hittable_list newParser::setDataLights(hittable_list lights)
         }
         if (!_lights[i]._position_sphere.type.empty()) {
             lights.add(std::make_shared<sphere>(point3(_lights[i]._position_sphere.position_x, _lights[i]._position_sphere.position_y, _lights[i]._position_sphere.position_z),
-            _lights[i]._position_sphere.radius, std::make_shared<diffuse_light>(color(_lights[i]._position_cone.color_r, _lights[i]._position_cone.color_g, _lights[i]._position_cone.color_b))));
+            _lights[i]._position_sphere.radius, std::make_shared<diffuse_light>(color(_lights[i]._position_sphere.color_r, _lights[i]._position_sphere.color_g, _lights[i]._position_sphere.color_b))));
         }
     }
     return lights;
@@ -601,112 +523,43 @@ hittable_list newParser::setDataLights(hittable_list lights)
 
 std::shared_ptr<hittable> newParser::createShape(point3 pos, double radius, std::shared_ptr<material> material_ptr, double rotation, std::string rotation_type, vec3 translation)
 {
-    std::shared_ptr<hittable> my_shape = std::make_shared<sphere>(pos, radius, material_ptr);
-
-    if (rotation_type == "x") {
-        my_shape = std::make_shared<rotate_x>(my_shape, rotation);
-    } else if (rotation_type == "y") {
-        my_shape = std::make_shared<rotate_y>(my_shape, rotation);
-    } else {
-        my_shape = std::make_shared<rotate_z>(my_shape, rotation);
-    }
-    return std::make_shared<translate>(my_shape, translation);
+    return applyTransform(std::make_shared<sphere>(pos, radius, material_ptr), rotation, rotation_type, translation);
 }
 
 std::shared_ptr<hittable> newParser::createShape(std::string shape, point3 pos, double radius, double height, std::shared_ptr<material> material_ptr, double rotation, std::string rotation_type, vec3 translation)
 {
-    std::shared_ptr<hittable> my_shape;
-
-    if (shape == "limcones") {
-        my_shape = std::make_shared<LimCone>(pos, radius, height, material_ptr);
-    } else {
-        my_shape = std::make_shared<Cone>(pos, radius, height, material_ptr);
-    }
-    if (rotation_type == "x") {
-        my_shape = std::make_shared<rotate_x>(my_shape, rotation);
-    } else if (rotation_type == "y") {
-        my_shape = std::make_shared<rotate_y>(my_shape, rotation);
-    } else {
-        my_shape = std::make_shared<rotate_z>(my_shape, rotation);
-    }
-    return std::make_shared<translate>(my_shape, translation);
+    std::shared_ptr<hittable> my_shape = (shape == "limcones")
+        ? std::static_pointer_cast<hittable>(std::make_shared<LimCone>(pos, radius, height, material_ptr))
+        : std::static_pointer_cast<hittable>(std::make_shared<Cone>(pos, radius, height, material_ptr));
+    return applyTransform(my_shape, rotation, rotation_type, translation);
 }
 
 std::shared_ptr<hittable> newParser::createShape(std::string shape, point3 base, point3 top, double radius, std::shared_ptr<material> material_ptr, double rotation, std::string rotation_type, vec3 translation)
 {
-    std::shared_ptr<hittable> my_shape;
-
-    if (shape == "limcylinders") {
-        my_shape = std::make_shared<LimCylinder>(base, top, radius, material_ptr);
-
-    } else {
-        my_shape = std::make_shared<Cylinder>(base, top, radius, material_ptr);
-    }
-    if (rotation_type == "x") {
-        my_shape = std::make_shared<rotate_x>(my_shape, rotation);
-    } else if (rotation_type == "y") {
-        my_shape = std::make_shared<rotate_y>(my_shape, rotation);
-    } else {
-        my_shape = std::make_shared<rotate_z>(my_shape, rotation);
-    }
-    return std::make_shared<translate>(my_shape, translation);
+    std::shared_ptr<hittable> my_shape = (shape == "limcylinders")
+        ? std::static_pointer_cast<hittable>(std::make_shared<LimCylinder>(base, top, radius, material_ptr))
+        : std::static_pointer_cast<hittable>(std::make_shared<Cylinder>(base, top, radius, material_ptr));
+    return applyTransform(my_shape, rotation, rotation_type, translation);
 }
 
 std::shared_ptr<hittable> newParser::createShape(point3 pos, point3 dir, vec3 rot, std::shared_ptr<material> material_ptr, double rotation, std::string rotation_type, vec3 translation)
 {
-    std::shared_ptr<hittable> my_shape;
-
-    my_shape = std::make_shared<quad>(pos, dir, rot, material_ptr);
-    if (rotation_type == "x") {
-        my_shape = std::make_shared<rotate_x>(my_shape, rotation);
-    } else if (rotation_type == "y") {
-        my_shape = std::make_shared<rotate_y>(my_shape, rotation);
-    } else {
-        my_shape = std::make_shared<rotate_z>(my_shape, rotation);
-    }
-    return std::make_shared<translate>(my_shape, translation);
+    return applyTransform(std::make_shared<quad>(pos, dir, rot, material_ptr), rotation, rotation_type, translation);
 }
 
 std::shared_ptr<hittable> newParser::createShape(point3 bot, point3 top, std::shared_ptr<material> material_ptr, double rotation, std::string rotation_type, vec3 translation)
 {
-    std::shared_ptr<hittable> my_shape = std::make_shared<Cube>(bot, top, material_ptr);
-
-    if (rotation_type == "x") {
-        my_shape = std::make_shared<rotate_x>(my_shape, rotation);
-    } else if (rotation_type == "y") {
-        my_shape = std::make_shared<rotate_y>(my_shape, rotation);
-    } else {
-        my_shape = std::make_shared<rotate_z>(my_shape, rotation);
-    }
-    return std::make_shared<translate>(my_shape, translation);
+    return applyTransform(std::make_shared<Cube>(bot, top, material_ptr), rotation, rotation_type, translation);
 }
 
 std::shared_ptr<hittable> newParser::createShape(point3 down, point3 left, point3 right, std::shared_ptr<material> material_ptr, double rotation, std::string rotation_type, vec3 translation)
 {
-    std::shared_ptr<hittable> my_shape = std::make_shared<triangle>(down, left, right, material_ptr);
-
-    if (rotation_type == "x") {
-        my_shape = std::make_shared<rotate_x>(my_shape, rotation);
-    } else if (rotation_type == "y") {
-        my_shape = std::make_shared<rotate_y>(my_shape, rotation);
-    } else {
-        my_shape = std::make_shared<rotate_z>(my_shape, rotation);
-    }
-    return std::make_shared<translate>(my_shape, translation);
+    return applyTransform(std::make_shared<triangle>(down, left, right, material_ptr), rotation, rotation_type, translation);
 }
 
 std::shared_ptr<hittable> newParser::createShape(point3 top, point3 basis1, point3 basis2, point3 basis3, point3 basis4, std::shared_ptr<material> material_ptr, double rotation, std::string rotation_type, vec3 translation)
 {
-    std::shared_ptr<hittable> my_shape = std::make_shared<pyramide>(top, basis1, basis2, basis3, basis4, material_ptr);
-
-    if (rotation_type == "x") {
-        my_shape = std::make_shared<rotate_x>(my_shape, rotation);
-    } else if (rotation_type == "y") {
-        my_shape = std::make_shared<rotate_y>(my_shape, rotation);
-    } else {
-        my_shape = std::make_shared<rotate_z>(my_shape, rotation);
-    }
-    return std::make_shared<translate>(my_shape, translation);
+    return applyTransform(std::make_shared<pyramide>(top, basis1, basis2, basis3, basis4, material_ptr), rotation, rotation_type, translation);
 }
 
 std::shared_ptr<metal> newParser::createMaterial(color colors, double fuzz)
@@ -740,168 +593,65 @@ std::shared_ptr<lambertian> newParser::createTexture(color color1, color color2,
     return std::make_shared<lambertian>(std::make_shared<checker_texture>(scale, color1, color2));
 }
 
-std::shared_ptr<material> newParser::createShapeMat(std::string type, pSphere sphere)
+std::shared_ptr<material> newParser::createShapeMat(std::string type, const IPrimitive& prim)
 {
-    if (type == "metal") {
-        return createMaterial(color(sphere.color_r, sphere.color_g, sphere.color_b), sphere.fuzz);
-    }
-    if (type == "glass") {
-        return createMaterial(sphere.fuzz);
-    }
-    if (type == "solid") {
-        return createMaterial(color(sphere.color_r, sphere.color_g, sphere.color_b));
-    }
-    if (type == "light") {
-        return createMaterial(color(sphere.color_r, sphere.color_g, sphere.color_b), 'c');
-    }
-    if (type == "noise") {
-        return createTexture(sphere.fuzz);
-    }
-    if (type == "checker") {
-        return createTexture(color(sphere.color_r, sphere.color_g, sphere.color_b),
-        color(sphere.color_r2, sphere.color_g2, sphere.color_b2), sphere.fuzz);
-    }
+    if (type == "metal")
+        return createMaterial(color(prim.color_r, prim.color_g, prim.color_b), prim.fuzz);
+    if (type == "glass")
+        return createMaterial(prim.fuzz);
+    if (type == "solid")
+        return createMaterial(color(prim.color_r, prim.color_g, prim.color_b));
+    if (type == "light")
+        return createMaterial(color(prim.color_r, prim.color_g, prim.color_b), 'c');
+    if (type == "noise")
+        return createTexture(prim.fuzz);
+    if (type == "checker")
+        return createTexture(color(prim.color_r, prim.color_g, prim.color_b),
+            color(prim.color_r2, prim.color_g2, prim.color_b2), prim.fuzz);
     return nullptr;
 }
 
-std::shared_ptr<material> newParser::createShapeMat(std::string type, pCone cone)
+void newParser::parseModels(void)
 {
-    if (type == "metal") {
-        return createMaterial(color(cone.color_r, cone.color_g, cone.color_b), cone.fuzz);
+    if (!_root["primitives"].exists("models"))
+        return;
+    pModel m;
+    const libconfig::Setting& models = _root["primitives"]["models"];
+    for (int i = 0; i != models.getLength(); i++) {
+        parseTransform(models[i], m);
+        models[i].lookupValue("file",    m.filename);
+        models[i].lookupValue("texture", m.texture_file);
+        models[i].lookupValue("material", m.material);
+        models[i].lookupValue("fuzz",    m.fuzz);
+        models[i].lookupValue("scale",   m.scale);
+        if (m.material != "image")
+            parseColor(models[i], m);
+        _primitives._models.push_back(m);
+        m = pModel{};
     }
-    if (type == "glass") {
-        return createMaterial(cone.fuzz);
-    }
-    if (type == "solid") {
-        return createMaterial(color(cone.color_r, cone.color_g, cone.color_b));
-    }
-    if (type == "light") {
-        return createMaterial(color(cone.color_r, cone.color_g, cone.color_b), 'c');
-    }
-    if (type == "noise") {
-        return createTexture(cone.fuzz);
-    }
-    if (type == "checker") {
-        return createTexture(color(cone.color_r, cone.color_g, cone.color_b),
-        color(cone.color_r2, cone.color_g2, cone.color_b2), cone.fuzz);
-    }
-    return nullptr;
 }
 
-std::shared_ptr<material> newParser::createShapeMat(std::string type, pCyli cylinder)
+hittable_list newParser::setDataModels(hittable_list world)
 {
-    if (type == "metal") {
-        return createMaterial(color(cylinder.color_r, cylinder.color_g, cylinder.color_b), cylinder.fuzz);
-    }
-    if (type == "glass") {
-        return createMaterial(cylinder.fuzz);
-    }
-    if (type == "solid") {
-        return createMaterial(color(cylinder.color_r, cylinder.color_g, cylinder.color_b));
-    }
-    if (type == "light") {
-        return createMaterial(color(cylinder.color_r, cylinder.color_g, cylinder.color_b), 'c');
-    }
-    if (type == "noise") {
-        return createTexture(cylinder.fuzz);
-    }
-    if (type == "checker") {
-        return createTexture(color(cylinder.color_r, cylinder.color_g, cylinder.color_b),
-        color(cylinder.color_r2, cylinder.color_g2, cylinder.color_b2), cylinder.fuzz);
-    }
-    return nullptr;
-}
+    for (const auto& m : _primitives._models) {
+        std::shared_ptr<material> mat;
+        if (m.material == "image" && !m.texture_file.empty())
+            mat = std::make_shared<lambertian>(std::make_shared<image_texture>(m.texture_file));
+        else
+            mat = createShapeMat(m.material, m);
+        if (!mat) continue;
 
-std::shared_ptr<material> newParser::createShapeMat(std::string type, pPlanes planes)
-{
-    if (type == "metal") {
-        return createMaterial(color(planes.color_r, planes.color_g, planes.color_b), planes.fuzz);
-    }
-    if (type == "glass") {
-        return createMaterial(planes.fuzz);
-    }
-    if (type == "solid") {
-        return createMaterial(color(planes.color_r, planes.color_g, planes.color_b));
-    }
-    if (type == "light") {
-        return createMaterial(color(planes.color_r, planes.color_g, planes.color_b), 'c');
-    }
-    if (type == "noise") {
-        return createTexture(planes.fuzz);
-    }
-    if (type == "checker") {
-        return createTexture(color(planes.color_r, planes.color_g, planes.color_b),
-        color(planes.color_r2, planes.color_g2, planes.color_b2), planes.fuzz);
-    }
-    return nullptr;
-}
-std::shared_ptr<material> newParser::createShapeMat(std::string type, pCube cube)
-{
-    if (type == "metal") {
-        return createMaterial(color(cube.color_r, cube.color_g, cube.color_b), cube.fuzz);
-    }
-    if (type == "glass") {
-        return createMaterial(cube.fuzz);
-    }
-    if (type == "solid") {
-        return createMaterial(color(cube.color_r, cube.color_g, cube.color_b));
-    }
-    if (type == "light") {
-        return createMaterial(color(cube.color_r, cube.color_g, cube.color_b), 'c');
-    }
-    if (type == "noise") {
-        return createTexture(cube.fuzz);
-    }
-    if (type == "checker") {
-        return createTexture(color(cube.color_r, cube.color_g, cube.color_b),
-        color(cube.color_r2, cube.color_g2, cube.color_b2), cube.fuzz);
-    }
-    return nullptr;
-}
+        hittable_list mesh = loadOBJ(m.filename, mat, m.scale);
+        if (mesh.objects.empty()) continue;
 
-std::shared_ptr<material> newParser::createShapeMat(std::string type, pTri triangle)
-{
-    if (type == "metal") {
-        return createMaterial(color(triangle.color_r, triangle.color_g, triangle.color_b), triangle.fuzz);
+        std::clog << "loadOBJ: building BVH for " << mesh.objects.size() << " triangles...\n" << std::flush;
+        std::shared_ptr<hittable> shape = std::make_shared<bvh_node>(mesh);
+        std::clog << "loadOBJ: BVH done\n" << std::flush;
+        shape = applyTransform(shape, m.rotation_angle, m.rotation_type,
+                               vec3(m.translate_x, m.translate_y, m.translate_z));
+        world.add(shape);
     }
-    if (type == "glass") {
-        return createMaterial(triangle.fuzz);
-    }
-    if (type == "solid") {
-        return createMaterial(color(triangle.color_r, triangle.color_g, triangle.color_b));
-    }
-    if (type == "light") {
-        return createMaterial(color(triangle.color_r, triangle.color_g, triangle.color_b), 'c');
-    }
-    if (type == "noise") {
-        return createTexture(triangle.fuzz);
-    }
-    if (type == "checker") {
-        return createTexture(color(triangle.color_r, triangle.color_g, triangle.color_b),
-        color(triangle.color_r2, triangle.color_g2, triangle.color_b2), triangle.fuzz);
-    }
-    return nullptr;
-}
-
-std::shared_ptr<material> newParser::createShapeMat(std::string type, pPyra pyramid)
-{
-    if (type == "metal") {
-        return createMaterial(color(pyramid.color_r, pyramid.color_g, pyramid.color_b), pyramid.fuzz);
-    }
-    if (type == "glass") {
-        return createMaterial(pyramid.fuzz);
-    }
-    if (type == "solid") {
-        return createMaterial(color(pyramid.color_r, pyramid.color_g, pyramid.color_b));
-    }
-    if (type == "noise") {
-        return createTexture(pyramid.fuzz);
-    }
-    if (type == "checker") {
-        return createTexture(color(pyramid.color_r, pyramid.color_g, pyramid.color_b),
-        color(pyramid.color_r2, pyramid.color_g2, pyramid.color_b2), pyramid.fuzz);
-    }
-    return nullptr;
+    return world;
 }
 
 void newParser::checkValidity(void)
@@ -913,11 +663,14 @@ void newParser::checkValidity(void)
     }
 
     const libconfig::Setting& camera = _root["camera"];
-    if(!camera.exists("resolution"))
-        if (camera["resolution"]["width"].getType() != libconfig::Setting::TypeInt ||
-        camera["resolution"]["height"].getType() != libconfig::Setting::TypeInt) {
+    if (camera.exists("resolution")) {
+        const libconfig::Setting& res = camera["resolution"];
+        if (!res.exists("width") || !res.exists("height"))
+            throw errorParser(errorParser::WRONG_NAME);
+        if (res["width"].getType() != libconfig::Setting::TypeInt ||
+            res["height"].getType() != libconfig::Setting::TypeInt)
             throw errorParser(errorParser::WRONG_TYPE);
-        }
+    }
     if (camera["position"]["x"].getType() != libconfig::Setting::TypeFloat ||
        camera["position"]["y"].getType() != libconfig::Setting::TypeFloat ||
        camera["position"]["z"].getType() != libconfig::Setting::TypeFloat) {
@@ -1058,6 +811,9 @@ void newParser::checkValidity(void)
                 throw errorParser(errorParser::WRONG_TYPE);
             }
         }
+        flag++;
+    }
+    if (_root["primitives"].exists("models")) {
         flag++;
     }
     if (_root["primitives"].getLength() > flag) {

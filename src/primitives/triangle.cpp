@@ -7,18 +7,28 @@
 
 #include "triangle.hpp"
 
-triangle::triangle(const point3& v0, const point3& v1, const point3& v2, std::shared_ptr<material> mat)
-    : vertex0(v0), vertex1(v1), vertex2(v2), mat(mat) {
-
+static Boxes make_triangle_bbox(const point3& v0, const point3& v1, const point3& v2) {
     double x_min = fmin(v0.x(), fmin(v1.x(), v2.x()));
     double y_min = fmin(v0.y(), fmin(v1.y(), v2.y()));
     double z_min = fmin(v0.z(), fmin(v1.z(), v2.z()));
-
     double x_max = fmax(v0.x(), fmax(v1.x(), v2.x()));
     double y_max = fmax(v0.y(), fmax(v1.y(), v2.y()));
     double z_max = fmax(v0.z(), fmax(v1.z(), v2.z()));
+    return Boxes(point3(x_min, y_min, z_min), point3(x_max, y_max, z_max));
+}
 
-    bbox = Boxes(point3(x_min, y_min, z_min), point3(x_max, y_max, z_max));
+triangle::triangle(const point3& v0, const point3& v1, const point3& v2, std::shared_ptr<material> mat)
+    : vertex0(v0), vertex1(v1), vertex2(v2), mat(mat)
+{
+    bbox = make_triangle_bbox(v0, v1, v2);
+}
+
+triangle::triangle(const point3& v0, const point3& v1, const point3& v2,
+                   const vec3& uv0_, const vec3& uv1_, const vec3& uv2_,
+                   std::shared_ptr<material> mat)
+    : vertex0(v0), vertex1(v1), vertex2(v2), uv0(uv0_), uv1(uv1_), uv2(uv2_), has_uvs(true), mat(mat)
+{
+    bbox = make_triangle_bbox(v0, v1, v2);
 }
 
 bool triangle::hit(const ray& r, interval ray_t, hit_record& rec) const {
@@ -51,6 +61,15 @@ bool triangle::hit(const ray& r, interval ray_t, hit_record& rec) const {
     rec.p = r.at(t);
     rec.set_face_normal(r, calculate_normal(vertex0, vertex1, vertex2));
     rec.mat = mat;
+
+    if (has_uvs) {
+        double w = 1.0 - u - v;
+        rec.u = w * uv0.x() + u * uv1.x() + v * uv2.x();
+        rec.v = w * uv0.y() + u * uv1.y() + v * uv2.y();
+    } else {
+        rec.u = u;
+        rec.v = v;
+    }
 
     return true;
 }

@@ -25,6 +25,9 @@ public:
      * @param mat The material of the triangle.
      */
     triangle(const point3& v0, const point3& v1, const point3& v2, std::shared_ptr<material> mat);
+    triangle(const point3& v0, const point3& v1, const point3& v2,
+             const vec3& uv0, const vec3& uv1, const vec3& uv2,
+             std::shared_ptr<material> mat);
 
     /**
      * @brief Determines if a ray intersects with the triangle.
@@ -43,8 +46,10 @@ public:
 
 private:
     point3 vertex0, vertex1, vertex2; /**< The vertices of the triangle. */
-    std::shared_ptr<material> mat; /**< The material of the triangle. */
-    Boxes bbox; /**< The bounding box of the triangle. */
+    vec3 uv0, uv1, uv2;              /**< Per-vertex UV texture coordinates. */
+    bool has_uvs = false;            /**< Whether UV coordinates were provided. */
+    std::shared_ptr<material> mat;   /**< The material of the triangle. */
+    Boxes bbox;                      /**< The bounding box of the triangle. */
 
     /**
      * @brief Calculates the normal vector of the triangle.

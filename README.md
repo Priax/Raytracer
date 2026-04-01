@@ -136,6 +136,7 @@ The number in parentheses is the number of points given in the grading scale for
             -G--low: Graphical low quality
             none: No preview
 ```
+OMP_NUM_THREADS=4 ./raytracer scenes/ma_scene.cfg > output.ppm
 
 ## More documentation with Doxygen
 
