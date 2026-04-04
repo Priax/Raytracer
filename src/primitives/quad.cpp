@@ -40,7 +40,7 @@ bool quad::hit(const ray& r, interval ray_t, hit_record& rec) const {
         return false;
     rec.t = t;
     rec.p = intersection;
-    rec.mat = mat;
+    rec.mat = mat.get();
     rec.set_face_normal(r, normal);
     return true;
 }

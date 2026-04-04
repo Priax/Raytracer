@@ -35,11 +35,11 @@ const interval& Boxes::axis_interval(int n) const {
 
 bool Boxes::hit(const ray& r, interval ray_t) const {
     const point3& ray_orig = r.origin();
-    const vec3&   ray_dir  = r.direction();
+    const vec3&   inv_dir  = r.inv_dir();
 
     for (int axis = 0; axis < 3; axis++) {
         const interval& ax = axis_interval(axis);
-        const double adinv = 1.0 / ray_dir[axis];
+        const double adinv = inv_dir[axis];
 
         double t0 = (ax.min - ray_orig[axis]) * adinv;
         double t1 = (ax.max - ray_orig[axis]) * adinv;
@@ -56,6 +56,13 @@ bool Boxes::hit(const ray& r, interval ray_t) const {
             return false;
     }
     return true;
+}
+
+double Boxes::surface_area() const {
+    double dx = x.size();
+    double dy = y.size();
+    double dz = z.size();
+    return 2.0 * (dx * dy + dy * dz + dx * dz);
 }
 
 int Boxes::longest_axis() const {

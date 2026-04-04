@@ -44,12 +44,23 @@ public:
      */
     Boxes bounding_box() const override;
 
+    const point3& get_v0()     const { return vertex0; }
+    const point3& get_v1()     const { return vertex1; }
+    const point3& get_v2()     const { return vertex2; }
+    const vec3&   get_normal() const { return precomputed_normal; }
+    const vec3&   get_uv0()    const { return uv0; }
+    const vec3&   get_uv1()    const { return uv1; }
+    const vec3&   get_uv2()    const { return uv2; }
+    bool          get_has_uvs()const { return has_uvs; }
+    const std::shared_ptr<material>& get_mat() const { return mat; }
+
 private:
     point3 vertex0, vertex1, vertex2; /**< The vertices of the triangle. */
     vec3 uv0, uv1, uv2;              /**< Per-vertex UV texture coordinates. */
     bool has_uvs = false;            /**< Whether UV coordinates were provided. */
     std::shared_ptr<material> mat;   /**< The material of the triangle. */
     Boxes bbox;                      /**< The bounding box of the triangle. */
+    vec3 precomputed_normal;         /**< Unit normal, precomputed at construction time. */
 
     /**
      * @brief Calculates the normal vector of the triangle.

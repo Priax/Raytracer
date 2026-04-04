@@ -68,6 +68,12 @@ public:
      */
     int longest_axis() const;
 
+    /**
+     * @brief Computes the surface area of the bounding box.
+     * @return The surface area of the bounding box.
+     */
+    double surface_area() const;
+
     static const Boxes empty, universe; /**< Static instances of an empty bounding box and the universe bounding box. */
 
 private:

@@ -53,6 +53,7 @@ void Display::displayLoop()
         _renderWindow->close();
         return;
     }
+    _imageSprite.setTexture(_imageTexture);
     updateImage(lastPixelSetX, lastPixelSetY);
     _refreshClock.restart();
     while (_renderWindow->isOpen()) {
@@ -105,11 +106,13 @@ void Display::runPreview(bool &previewLowQuality, camera &realCamera, hittable_l
     if (previewLowQuality) {
         std::cout.setstate(std::ios_base::failbit);
         std::clog.setstate(std::ios_base::failbit);
-        camera preview = realCamera;
-        preview.samples_per_pixel = 10;
-        preview._colorsQueue = _colorsQueue;
-        preview._colorsQueueMutex = _colorsQueueMutex;
-        _previewThread.reset(new std::thread(&camera::render, &preview, std::ref(world), std::ref(lights)));
+        auto preview = std::make_shared<camera>(realCamera);
+        preview->samples_per_pixel = 10;
+        preview->_colorsQueue = _colorsQueue;
+        preview->_colorsQueueMutex = _colorsQueueMutex;
+        _previewThread.reset(new std::thread([preview, &world, &lights]() {
+            preview->render(world, lights);
+        }));
     } else {
         realCamera._colorsQueue = _colorsQueue;
         realCamera._colorsQueueMutex = _colorsQueueMutex;

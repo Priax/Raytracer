@@ -21,7 +21,7 @@ class hit_record {
 public:
     point3 p; /**< The hit point. */
     vec3 normal; /**< The normal at the hit point. */
-    std::shared_ptr<material> mat; /**< The material of the hit object. */
+    const material *mat; /**< The material of the hit object. */
     double t; /**< The parameter 't' of the ray at the hit point. */
     double u; /**< The u texture coordinate. */
     double v; /**< The v texture coordinate. */

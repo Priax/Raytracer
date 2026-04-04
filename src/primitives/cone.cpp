@@ -46,7 +46,7 @@ bool LimCone::hit(const ray &r, interval ray_t, hit_record &rec) const {
     rec.p = r.at(rec.t);
     vec3 outward_normal = normal_at(rec.p);
     rec.set_face_normal(r, outward_normal);
-    rec.mat = mat;
+    rec.mat = mat.get();
 
     return true;
 }
@@ -101,7 +101,7 @@ bool Cone::hit(const ray &r, interval ray_t, hit_record &rec) const {
             rec.p = base_hit_point;
             vec3 outward_normal = normal_at(base_hit_point);
             rec.set_face_normal(r, outward_normal);
-            rec.mat = mat;
+            rec.mat = mat.get();
             return true;
         }
         // Check if the intersection is on the top base of the cone
@@ -112,7 +112,7 @@ bool Cone::hit(const ray &r, interval ray_t, hit_record &rec) const {
             rec.p = top_hit_point;
             vec3 outward_normal = normal_at(top_hit_point);
             rec.set_face_normal(r, outward_normal);
-            rec.mat = mat;
+            rec.mat = mat.get();
             return true;
         }
         return false;
@@ -123,7 +123,7 @@ bool Cone::hit(const ray &r, interval ray_t, hit_record &rec) const {
     rec.p = r.at(rec.t);
     vec3 outward_normal = normal_at(rec.p);
     rec.set_face_normal(r, outward_normal);
-    rec.mat = mat;
+    rec.mat = mat.get();
 
     return true;
 }

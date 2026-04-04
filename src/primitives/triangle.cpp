@@ -21,6 +21,7 @@ triangle::triangle(const point3& v0, const point3& v1, const point3& v2, std::sh
     : vertex0(v0), vertex1(v1), vertex2(v2), mat(mat)
 {
     bbox = make_triangle_bbox(v0, v1, v2);
+    precomputed_normal = calculate_normal(v0, v1, v2);
 }
 
 triangle::triangle(const point3& v0, const point3& v1, const point3& v2,
@@ -29,6 +30,7 @@ triangle::triangle(const point3& v0, const point3& v1, const point3& v2,
     : vertex0(v0), vertex1(v1), vertex2(v2), uv0(uv0_), uv1(uv1_), uv2(uv2_), has_uvs(true), mat(mat)
 {
     bbox = make_triangle_bbox(v0, v1, v2);
+    precomputed_normal = calculate_normal(v0, v1, v2);
 }
 
 bool triangle::hit(const ray& r, interval ray_t, hit_record& rec) const {
@@ -59,8 +61,8 @@ bool triangle::hit(const ray& r, interval ray_t, hit_record& rec) const {
 
     rec.t = t;
     rec.p = r.at(t);
-    rec.set_face_normal(r, calculate_normal(vertex0, vertex1, vertex2));
-    rec.mat = mat;
+    rec.set_face_normal(r, precomputed_normal);
+    rec.mat = mat.get();
 
     if (has_uvs) {
         double w = 1.0 - u - v;

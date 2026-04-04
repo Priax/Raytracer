@@ -6,6 +6,7 @@
 */
 
 #include "new_parser.hpp"
+#include <chrono>
 
 newParser::newParser(libconfig::Config &config) : _cfg(config), _root(_cfg.getRoot())
 {
@@ -641,12 +642,21 @@ hittable_list newParser::setDataModels(hittable_list world)
             mat = createShapeMat(m.material, m);
         if (!mat) continue;
 
+        auto t0 = std::chrono::steady_clock::now();
         hittable_list mesh = loadOBJ(m.filename, mat, m.scale);
+        auto t1 = std::chrono::steady_clock::now();
         if (mesh.objects.empty()) continue;
 
-        std::clog << "loadOBJ: building BVH for " << mesh.objects.size() << " triangles...\n" << std::flush;
-        std::shared_ptr<hittable> shape = std::make_shared<bvh_node>(mesh);
-        std::clog << "loadOBJ: BVH done\n" << std::flush;
+        std::clog << "loadOBJ: parsed " << mesh.objects.size() << " triangles in "
+                  << std::chrono::duration<double>(t1 - t0).count() << "s\n" << std::flush;
+        std::clog << "loadOBJ: building LinearBVH...\n" << std::flush;
+        auto lbvh = std::make_shared<LinearBVH>(mesh);
+        auto t2 = std::chrono::steady_clock::now();
+        std::clog << "loadOBJ: LinearBVH done in "
+                  << std::chrono::duration<double>(t2 - t1).count() << "s"
+                  << "  nodes=" << lbvh->node_count()
+                  << "  prims=" << lbvh->prim_count() << "\n" << std::flush;
+        std::shared_ptr<hittable> shape = lbvh;
         shape = applyTransform(shape, m.rotation_angle, m.rotation_type,
                                vec3(m.translate_x, m.translate_y, m.translate_z));
         world.add(shape);

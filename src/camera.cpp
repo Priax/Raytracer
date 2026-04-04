@@ -17,7 +17,6 @@ void camera::render(const hittable& world, const hittable &lights) {
     std::vector<bool> row_ready(image_height, false);
     std::atomic<int> rows_done(0);
     int next_row_to_push = 0;
-    std::mutex push_mutex;
 
     std::clog << "Rendering " << image_width << "x" << image_height
               << " spp=" << sqrt_spp * sqrt_spp << " depth=" << max_depth << "\n" << std::flush;
@@ -34,7 +33,7 @@ void camera::render(const hittable& world, const hittable &lights) {
             buffer[j * image_width + i] = pixel_samples_scale * pixel_color;
         }
         {
-            std::lock_guard<std::mutex> lock(push_mutex);
+            std::lock_guard<std::mutex> lock(*_colorsQueueMutex);
             row_ready[j] = true;
             while (next_row_to_push < image_height && row_ready[next_row_to_push]) {
                 if (_colorsQueue != nullptr) {

@@ -52,6 +52,13 @@ public:
     const vec3& direction() const;
 
     /**
+     * @brief Get the precomputed per-component inverse of the ray direction.
+     *
+     * @return vec3 where each component is 1/dir[i].
+     */
+    const vec3& inv_dir() const;
+
+    /**
      * @brief Get the point on the ray at a given time.
      * 
      * @param t The time value.
@@ -69,6 +76,7 @@ public:
 private:
     point3 orig; /**< Origin point of the ray. */
     vec3 dir; /**< Direction vector of the ray. */
+    vec3 inv_d; /**< Per-component inverse of the direction (1/dir[i]). */
     double tm; /**< Time associated with the ray. */
 };
 

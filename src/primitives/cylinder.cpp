@@ -50,7 +50,7 @@ bool LimCylinder::hit(const ray& r, interval ray_t, hit_record& rec) const {
 
     rec.t = t_hit;
     rec.p = hit_point;
-    rec.mat = mat;
+    rec.mat = mat.get();
     rec.set_face_normal(r, normal);
 
     return true;
@@ -112,7 +112,7 @@ bool Cylinder::hit(const ray &r, interval ray_t, hit_record &rec) const {
 
     rec.t = t_hit;
     rec.p = hit_point;
-    rec.mat = mat;
+    rec.mat = mat.get();
     rec.set_face_normal(r, normal);
 
     // Check intersection with top cap
