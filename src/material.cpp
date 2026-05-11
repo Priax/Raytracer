@@ -54,13 +54,24 @@ bool metal::scatter(const ray &r_in, const hit_record &rec, scatter_record &srec
     return true;
 }
 
-dielectric::dielectric(double refraction_index) : refraction_index(refraction_index) {}
+dielectric::dielectric(double refraction_index, const color &a, double density) : refraction_index(refraction_index), albedo(a), density(density) {}
 
 bool dielectric::scatter(const ray &r_in, const hit_record &rec, scatter_record &srec) const {
-    srec.attenuation = color(1.0, 1.0, 1.0);
     srec.pdf_ptr = nullptr;
     srec.skip_pdf = true;
     double ri = rec.front_face ? (1.0 / refraction_index) : refraction_index;
+
+    color attenuation = color(1.0, 1.0, 1.0);
+
+    if (!rec.front_face) {
+        double distance = rec.t * r_in.direction().length();
+
+        attenuation.e[0] = std::exp(-(1.0 - albedo.e[0]) * density * distance);
+        attenuation.e[1] = std::exp(-(1.0 - albedo.e[1]) * density * distance);
+        attenuation.e[2] = std::exp(-(1.0 - albedo.e[2]) * density * distance);
+    }
+
+    srec.attenuation = attenuation;
 
     vec3 unit_direction = Vec3Utils::unit_vector(r_in.direction());
     double cos_theta = fmin((-unit_direction).dot(rec.normal), 1.0);

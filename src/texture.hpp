@@ -91,6 +91,22 @@ private:
 };
 
 /**
+ * @brief Texture representing a 2D UV checker pattern (wraps around meshes).
+ */
+class uv_checker_texture : public texture {
+public:
+    uv_checker_texture(double scale, std::shared_ptr<texture> even, std::shared_ptr<texture> odd);
+    uv_checker_texture(double scale, const color& c1, const color& c2);
+
+    color value(double u, double v, const point3& p) const override;
+
+private:
+    double inv_scale;
+    std::shared_ptr<texture> even;
+    std::shared_ptr<texture> odd;
+};
+
+/**
  * @brief Texture representing a noise pattern.
  */
 class noise_texture : public texture {

@@ -18,15 +18,28 @@
 class triangle : public hittable {
 public:
     /**
-     * @brief Constructs a triangle with specified parameters.
-     * @param v0 The first vertex of the triangle.
-     * @param v1 The second vertex of the triangle.
-     * @param v2 The third vertex of the triangle.
-     * @param mat The material of the triangle.
+     * @brief Flat-shaded triangle, no UVs.
      */
-    triangle(const point3& v0, const point3& v1, const point3& v2, std::shared_ptr<material> mat);
+    triangle(const point3& v0, const point3& v1, const point3& v2,
+             std::shared_ptr<material> mat);
+ 
+    /**
+     * @brief Flat-shaded triangle with per-vertex UV coordinates.
+     * UVs are vec3(u, v, 0).
+     */
     triangle(const point3& v0, const point3& v1, const point3& v2,
              const vec3& uv0, const vec3& uv1, const vec3& uv2,
+             std::shared_ptr<material> mat);
+ 
+    /**
+     * @brief Smooth-shaded triangle with per-vertex normals and UV coordinates.
+     * Normals are interpolated barycentrically in hit(), giving Phong-style
+     * smooth shading even on coarse meshes (e.g. parametric surfaces).
+     * UVs are vec3(u, v, 0).
+     */
+    triangle(const point3& v0, const point3& v1, const point3& v2,
+             const vec3& uv0, const vec3& uv1, const vec3& uv2,
+             const vec3& n0,  const vec3& n1,  const vec3& n2,
              std::shared_ptr<material> mat);
 
     /**
@@ -57,7 +70,9 @@ public:
 private:
     point3 vertex0, vertex1, vertex2; /**< The vertices of the triangle. */
     vec3 uv0, uv1, uv2;              /**< Per-vertex UV texture coordinates. */
+    vec3 vn0, vn1, vn2;            /**< Per-vertex normals (smooth shading) */
     bool has_uvs = false;            /**< Whether UV coordinates were provided. */
+    bool has_vnorms = false;        /**< True when per-vertex normals were supplied */
     std::shared_ptr<material> mat;   /**< The material of the triangle. */
     Boxes bbox;                      /**< The bounding box of the triangle. */
     vec3 precomputed_normal;         /**< Unit normal, precomputed at construction time. */

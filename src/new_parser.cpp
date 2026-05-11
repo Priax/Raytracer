@@ -38,9 +38,13 @@ void newParser::parseTransform(const libconfig::Setting& s, IPrimitive& prim)
 
 void newParser::parseColor(const libconfig::Setting& s, IPrimitive& prim)
 {
-    if (prim.material == "noise" || prim.material == "glass")
+    s.lookupValue("density", prim.density);
+    s.lookupValue("texture", prim.texture_file);
+    s.lookupValue("scale", prim.scale);
+
+    if (prim.material == "noise") 
         return;
-    if (prim.material == "checker") {
+    if (prim.material == "checker" || prim.material == "uv_checker") {
         s["color2"].lookupValue("r", prim.color_r2);
         s["color2"].lookupValue("g", prim.color_g2);
         s["color2"].lookupValue("b", prim.color_b2);
@@ -118,14 +122,13 @@ void newParser::parseCamera(void)
     if (camera.exists("focus")) {
         camera["focus"].lookupValue("distance", readFloat);
         _cameraFocus = readFloat;
+        camera["focus"].lookupValue("other", _cameraDistance);
     } else {
         _cameraFocus = 0.1;
+        _cameraDistance = 10.0;
     }
     if (camera.exists("spp")) {
         camera["spp"].lookupValue("rate", _spp);
-    }
-    if (camera.exists("focus")) {
-        camera["focus"].lookupValue("other", _cameraDistance);
     }
     if (camera.exists("depth")) {
         camera["depth"].lookupValue("max", _maxDepth);
@@ -396,6 +399,9 @@ void newParser::parsePrimitives(void)
         if (name == "models") {
             parseModels();
         }
+        if (name == "parametrics") {
+            parseParametrics();
+        }
     }
 }
 
@@ -573,9 +579,9 @@ std::shared_ptr<lambertian> newParser::createMaterial(color colors)
     return std::make_shared<lambertian>(colors);
 }
 
-std::shared_ptr<dielectric> newParser::createMaterial(double refraction_index)
+std::shared_ptr<dielectric> newParser::createMaterial(double refraction_index, const color& albedo, double density)
 {
-    return std::make_shared<dielectric>(refraction_index);
+    return std::make_shared<dielectric>(refraction_index, albedo, density);
 }
 
 std::shared_ptr<diffuse_light> newParser::createMaterial(color colors, char c)
@@ -599,7 +605,7 @@ std::shared_ptr<material> newParser::createShapeMat(std::string type, const IPri
     if (type == "metal")
         return createMaterial(color(prim.color_r, prim.color_g, prim.color_b), prim.fuzz);
     if (type == "glass")
-        return createMaterial(prim.fuzz);
+        return createMaterial(prim.fuzz, color(prim.color_r, prim.color_g, prim.color_b), prim.density);
     if (type == "solid")
         return createMaterial(color(prim.color_r, prim.color_g, prim.color_b));
     if (type == "light")
@@ -609,6 +615,14 @@ std::shared_ptr<material> newParser::createShapeMat(std::string type, const IPri
     if (type == "checker")
         return createTexture(color(prim.color_r, prim.color_g, prim.color_b),
             color(prim.color_r2, prim.color_g2, prim.color_b2), prim.fuzz);
+    if (type == "uv_checker")
+        return std::make_shared<lambertian>(std::make_shared<uv_checker_texture>(
+                    prim.fuzz, 
+                    color(prim.color_r, prim.color_g, prim.color_b), 
+                    color(prim.color_r2, prim.color_g2, prim.color_b2)
+                    ));
+    if (type == "image" && !prim.texture_file.empty())
+        return std::make_shared<lambertian>(std::make_shared<image_texture>(prim.texture_file));
     return nullptr;
 }
 
@@ -664,6 +678,137 @@ hittable_list newParser::setDataModels(hittable_list world)
     return world;
 }
 
+void newParser::parseParametrics()
+{
+    if (!_root["primitives"].exists("parametrics"))
+        return;
+ 
+    const libconfig::Setting& params = _root["primitives"]["parametrics"];
+    for (int i = 0; i < params.getLength(); i++) {
+        pParametric p;
+        parseTransform(params[i], p);
+        params[i].lookupValue("type",    p.surface_type);
+        params[i].lookupValue("param1",  p.param1);
+        params[i].lookupValue("param2",  p.param2);
+        params[i].lookupValue("param3",  p.param3);
+        params[i].lookupValue("u_steps", p.u_steps);
+        params[i].lookupValue("v_steps", p.v_steps);
+        params[i].lookupValue("material", p.material);
+        params[i].lookupValue("fuzz",    p.fuzz);
+        parseColor(params[i], p);
+        _primitives._parametrics.push_back(p);
+    }
+}
+ 
+std::shared_ptr<parametric_surface>
+newParser::buildParametricSurface(const pParametric& p,
+                                   std::shared_ptr<material> mat)
+{
+    using Fn = parametric_surface::SurfaceFn;
+    Fn fn;
+ 
+    const double p1 = p.param1;
+    const double p2 = p.param2;
+    const double p3 = p.param3;
+ 
+    if (p.surface_type == "torus") {
+        // R = p1 (rayon majeur), r = p2 (rayon du tube)
+        fn = [p1, p2](double u, double v) -> point3 {
+            double U = 2.0 * pi * u;
+            double V = 2.0 * pi * v;
+            return point3(
+                (p1 + p2 * cos(V)) * cos(U),
+                 p2 * sin(V),
+                (p1 + p2 * cos(V)) * sin(U)
+            );
+        };
+ 
+    } else if (p.surface_type == "mobius") {
+        // Bande de Möbius. p1 = rayon, p2 = demi-largeur
+        fn = [p1, p2](double u, double v) -> point3 {
+            double U  = 2.0 * pi * u;
+            double t  = (v - 0.5) * 2.0 * p2;   // [-p2, p2]
+            double cu = cos(U / 2.0);
+            double su = sin(U / 2.0);
+            return point3(
+                (p1 + t * cu) * cos(U),
+                 t * su,
+                (p1 + t * cu) * sin(U)
+            );
+        };
+ 
+    } else if (p.surface_type == "klein") {
+        // Bouteille de Klein (immersion standard dans R³).
+        // p1 = rayon global
+        fn = [p1](double u, double v) -> point3 {
+            double U = 2.0 * pi * u;   // [0, 2π]
+            double V = 2.0 * pi * v;   // [0, 2π]
+            double r = p1;
+            // Formule de Lawson
+            double x, y, z;
+            if (U < pi) {
+                x = 3.0*r*cos(U)*(1.0 + sin(U)) + 2.0*r*(1.0 - cos(U)/2.0)*cos(U)*cos(V);
+                y = 8.0*r*sin(U) + 2.0*r*(1.0 - cos(U)/2.0)*sin(U)*cos(V);
+                z = 2.0*r*(1.0 - cos(U)/2.0)*sin(V);
+            } else {
+                x = 3.0*r*cos(U)*(1.0 + sin(U)) + 2.0*r*(1.0 - cos(U)/2.0)*cos(V+pi);
+                y = 8.0*r*sin(U);
+                z = 2.0*r*(1.0 - cos(U)/2.0)*sin(V);
+            }
+            return point3(x * 0.1, y * 0.1, z * 0.1);
+        };
+ 
+    } else if (p.surface_type == "wave") {
+        // Plan ondulé. p1 = amplitude, p2 = fréquence, p3 = taille (half-extent)
+        double extent = (p3 > 0.0) ? p3 : 4.0;
+        fn = [p1, p2, extent](double u, double v) -> point3 {
+            double x = (u - 0.5) * 2.0 * extent;
+            double z = (v - 0.5) * 2.0 * extent;
+            double y = p1 * sin(p2 * x) * cos(p2 * z);
+            return point3(x, y, z);
+        };
+ 
+    } else if (p.surface_type == "spring") {
+        // Ressort hélicoïdal. p1 = rayon hélix, p2 = rayon du tube, p3 = nb tours
+        double turns = (p3 > 0.0) ? p3 : 3.0;
+        fn = [p1, p2, turns](double u, double v) -> point3 {
+            double angle  = 2.0 * pi * u * turns;
+            double circle = 2.0 * pi * v;
+            double cx = (p1 + p2 * cos(circle)) * cos(angle);
+            double cy = u * turns * 0.5 + p2 * sin(circle);   // remonte sur Y
+            double cz = (p1 + p2 * cos(circle)) * sin(angle);
+            return point3(cx, cy, cz);
+        };
+ 
+    } else {
+        // Fallback : sphère unité
+        fn = [](double u, double v) -> point3 {
+            double theta = pi * v;
+            double phi   = 2.0 * pi * u;
+            return point3(sin(theta)*cos(phi), cos(theta), sin(theta)*sin(phi));
+        };
+    }
+ 
+    return std::make_shared<parametric_surface>(fn, mat, p.u_steps, p.v_steps);
+}
+ 
+hittable_list newParser::setDataParametrics(hittable_list world)
+{
+    for (const auto& p : _primitives._parametrics) {
+        std::shared_ptr<material> mat = createShapeMat(p.material, p);
+        if (!mat) continue;
+ 
+        auto surf = buildParametricSurface(p, mat);
+ 
+        std::shared_ptr<hittable> shape = surf;
+        shape = applyTransform(shape,
+                               p.rotation_angle, p.rotation_type,
+                               vec3(p.translate_x, p.translate_y, p.translate_z));
+        world.add(shape);
+    }
+    return world;
+}
+
 void newParser::checkValidity(void)
 {
     int flag = 0;
@@ -708,6 +853,9 @@ void newParser::checkValidity(void)
             sphere["fuzz"].getType() != libconfig::Setting::TypeFloat) {
                 throw errorParser(errorParser::WRONG_TYPE);
             }
+            if (sphere.exists("density") && sphere["density"].getType() != libconfig::Setting::TypeFloat) {
+                throw errorParser(errorParser::WRONG_TYPE);
+            }
         }
         flag++;
     }
@@ -728,6 +876,9 @@ void newParser::checkValidity(void)
             cylinder["color"]["g"].getType() != libconfig::Setting::TypeFloat ||
             cylinder["color"]["b"].getType() != libconfig::Setting::TypeFloat ||
             cylinder["fuzz"].getType() != libconfig::Setting::TypeFloat) {
+                throw errorParser(errorParser::WRONG_TYPE);
+            }
+            if (cylinder.exists("density") && cylinder["density"].getType() != libconfig::Setting::TypeFloat) {
                 throw errorParser(errorParser::WRONG_TYPE);
             }
         }
@@ -751,6 +902,9 @@ void newParser::checkValidity(void)
             cylinder["fuzz"].getType() != libconfig::Setting::TypeFloat) {
                 throw errorParser(errorParser::WRONG_TYPE);
             }
+            if (cylinder.exists("density") && cylinder["density"].getType() != libconfig::Setting::TypeFloat) {
+                throw errorParser(errorParser::WRONG_TYPE);
+            }
         }
         flag++;
     }
@@ -770,6 +924,9 @@ void newParser::checkValidity(void)
             cone["fuzz"].getType() != libconfig::Setting::TypeFloat) {
                 throw errorParser(errorParser::WRONG_TYPE);
             }
+            if (cone.exists("density") && cone["density"].getType() != libconfig::Setting::TypeFloat) {
+                throw errorParser(errorParser::WRONG_TYPE);
+            }
         }
         flag++;
     }
@@ -787,6 +944,9 @@ void newParser::checkValidity(void)
             cone["color"]["g"].getType() != libconfig::Setting::TypeFloat ||
             cone["color"]["b"].getType() != libconfig::Setting::TypeFloat ||
             cone["fuzz"].getType() != libconfig::Setting::TypeFloat) {
+                throw errorParser(errorParser::WRONG_TYPE);
+            }
+            if (cone.exists("density") && cone["density"].getType() != libconfig::Setting::TypeFloat) {
                 throw errorParser(errorParser::WRONG_TYPE);
             }
         }
@@ -820,10 +980,16 @@ void newParser::checkValidity(void)
             plane["color"]["b"].getType() != libconfig::Setting::TypeFloat) {
                 throw errorParser(errorParser::WRONG_TYPE);
             }
+            if (plane.exists("density") && plane["density"].getType() != libconfig::Setting::TypeFloat) {
+                throw errorParser(errorParser::WRONG_TYPE);
+            }
         }
         flag++;
     }
     if (_root["primitives"].exists("models")) {
+        flag++;
+    }
+    if (_root["primitives"].exists("parametrics")) {
         flag++;
     }
     if (_root["primitives"].getLength() > flag) {

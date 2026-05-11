@@ -151,5 +151,6 @@ public:
 };
 
 // Additional utility functions can be added here
+using vec2 = VectorN<double, 2>;
 
 #endif // VEC_H

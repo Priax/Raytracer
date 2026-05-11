@@ -38,6 +38,7 @@ SRC = 	src/main.cpp 				\
 		src/vecN.cpp 				\
 		src/bvh.cpp 				\
 		src/obj_loader.cpp 			\
+		src/parametric_surface.cpp	\
 
 TEST_SRC =	src/primitives/quad.cpp 	\
 			src/primitives/sphere.cpp 	\

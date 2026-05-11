@@ -21,6 +21,7 @@
 #include "camera.hpp"
 #include "bvh.hpp"
 #include "obj_loader.hpp"
+#include "parametric_surface.hpp"
 #include "texture.hpp"
 
 /**
@@ -33,6 +34,8 @@ public:
     double position_z; /**< Z-coordinate of the position */
     double radius; /**< Radius of the shape */
     std::string material; /**< Material of the shape */
+    std::string texture_file = ""; /**< Path to the texture image (if material is "image") */
+    double scale = 1.0;            /**< Scale for the object or the texture pattern */
     double color_r; /**< Red component of the color */
     double color_g; /**< Green component of the color */
     double color_b; /**< Blue component of the color */
@@ -40,6 +43,7 @@ public:
     double color_g2; /**< Secondary green component of the color */
     double color_b2; /**< Secondary blue component of the color */
     double fuzz; /**< Fuzziness of the shape */
+    double density = 0.0; /**< Density for Beer-Lambert absorption */
     double rotation_angle = 0; /**< Rotation angle */
     double translate_x = 0; /**< X-coordinate translation */
     double translate_y = 0; /**< Y-coordinate translation */
@@ -135,8 +139,6 @@ public:
 class pModel : public IPrimitive {
 public:
     std::string filename;       /**< Path to the .obj file */
-    std::string texture_file;   /**< Optional path to a texture image */
-    double scale = 1.0;         /**< Uniform scale factor */
 };
 
 /**
@@ -148,6 +150,15 @@ public:
     pCone _position_cone; /**< Position cone */
     pSphere _position_sphere; /**< Position sphere */
     pPlanes _position_plane; /**< Position plane */
+};
+
+struct pParametric : public IPrimitive {
+    std::string surface_type;   // "torus", "klein", "mobius", "wave", "spring"
+    double param1 = 1.0;        // R majeur (torus), amplitude (wave), …
+    double param2 = 0.3;        // r mineur (torus), fréquence (wave), …
+    double param3 = 0.0;        // usage libre selon le type
+    int    u_steps = 80;
+    int    v_steps = 80;
 };
 
 /**
@@ -163,6 +174,7 @@ public:
     std::vector<pTri> _triangles; /**< Collection of triangles */
     std::vector<pPyra>  _pyramids; /**< Collection of pyramids */
     std::vector<pModel> _models;   /**< Collection of 3D models */
+    std::vector<pParametric> _parametrics; /**< Collection of Parametrics */
 };
 
 /**
@@ -236,6 +248,10 @@ public:
      * @return Updated hittable_list.
      */
     hittable_list setDataModels(hittable_list world);
+
+    void parseParametrics();
+    hittable_list setDataParametrics(hittable_list world);
+    static std::shared_ptr<parametric_surface> buildParametricSurface(const pParametric& p, std::shared_ptr<material> mat);
 
     /**
      * @brief Parses the light sources from the configuration.
@@ -347,7 +363,7 @@ public:
      * @param refraction_index Refraction index of the material
      * @return Shared pointer to the created material
      */
-    std::shared_ptr<dielectric> createMaterial(double refraction_index);
+    std::shared_ptr<dielectric> createMaterial(double refraction_index, const color& albedo, double density);
 
     /**
      * @brief Creates a metal material.

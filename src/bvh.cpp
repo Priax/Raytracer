@@ -244,7 +244,6 @@ int LinearBVH::build(std::vector<std::shared_ptr<hittable>>& objs,
     size_t span = end - start;
 
     if (span <= 2) {
-        // ── Leaf ──────────────────────────────────────────────────────────────
         int prim_offset = (int)prims.size();
         for (size_t i = start; i < end; i++) {
             auto tri = std::dynamic_pointer_cast<triangle>(objs[i]);
@@ -257,7 +256,6 @@ int LinearBVH::build(std::vector<std::shared_ptr<hittable>>& objs,
         return node_idx;
     }
 
-    // ── SAH split ─────────────────────────────────────────────────────────────
     static const int N_BUCKETS = 12;
     struct BucketInfo { int count = 0; Boxes bbox = Boxes::empty; };
 

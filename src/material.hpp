@@ -118,13 +118,14 @@ public:
      * @brief Constructs a dielectric material with a specified refraction index.
      * @param refraction_index The refraction index.
      */
-    dielectric(double refraction_index);
+    dielectric(double refraction_index, const color& a, double density);
 
-    bool scatter(const ray& r_in, const hit_record& rec, scatter_record& srec) const override;
+    virtual bool scatter(const ray &r_in, const hit_record &rec, scatter_record &srec) const override;
 
 private:
     double refraction_index; /**< The refraction index of the dielectric material. */
-
+    color albedo;
+    double density;
     /**
      * @brief Computes the reflectance for a given cosine and refraction index.
      * @param cosine The cosine of the angle.

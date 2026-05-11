@@ -75,3 +75,19 @@ color image_texture::value(double u, double v, const point3& p) const
     static const double scale = 1.0 / 255.0;
     return color(c.r * scale, c.g * scale, c.b * scale);
 }
+
+uv_checker_texture::uv_checker_texture(double scale, std::shared_ptr<texture> even, std::shared_ptr<texture> odd) 
+    : inv_scale(scale), even(even), odd(odd) {}
+
+uv_checker_texture::uv_checker_texture(double scale, const color& c1, const color& c2) 
+    : inv_scale(scale), even(std::make_shared<solid_color>(c1)), odd(std::make_shared<solid_color>(c2)) {}
+
+color uv_checker_texture::value(double u, double v, const point3 &p) const {
+    // Si inv_scale vaut 20.0, uInteger ira de 0 à 20 sur la surface de l'objet.
+    int uInteger = int(std::floor(inv_scale * u));
+    int vInteger = int(std::floor(inv_scale * v));
+
+    bool isEven = (uInteger + vInteger) % 2 == 0;
+
+    return isEven ? even->value(u, v, p) : odd->value(u, v, p);
+}
