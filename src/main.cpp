@@ -61,7 +61,7 @@ int main(int argc, char **argv)
             cam.render(world, lights);
         }
     } catch (errorParser &e) {
-        std::cerr << "Error occured : " << e.what() << std::endl;
+        std::cerr << "Error occured: " << e.what() << std::endl;
         return 84;
     } catch (libconfig::SettingNotFoundException &e) {
         std::cerr << "Incorrect setting " << e.getPath() << std::endl;

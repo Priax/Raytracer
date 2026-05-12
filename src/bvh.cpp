@@ -188,8 +188,6 @@ bool bvh_node::box_compare(const std::shared_ptr<hittable>& a, const std::shared
     return a->bounding_box().axis_interval(axis).min < b->bounding_box().axis_interval(axis).min;
 }
 
-// ─── FlatTriangle ─────────────────────────────────────────────────────────────
-
 bool FlatTriangle::hit(const ray& r, interval ray_t, hit_record& rec) const
 {
     vec3 edge1 = v1 - v0;
@@ -227,8 +225,6 @@ bool FlatTriangle::hit(const ray& r, interval ray_t, hit_record& rec) const
     }
     return true;
 }
-
-// ─── LinearBVH – build (SAH, DFS pre-order) ──────────────────────────────────
 
 int LinearBVH::build(std::vector<std::shared_ptr<hittable>>& objs,
                      size_t start, size_t end)
@@ -331,8 +327,6 @@ int LinearBVH::build(std::vector<std::shared_ptr<hittable>>& objs,
     return node_idx;
 }
 
-// ─── LinearBVH – constructor ──────────────────────────────────────────────────
-
 LinearBVH::LinearBVH(hittable_list& mesh)
 {
     if (mesh.objects.empty()) return;
@@ -341,8 +335,6 @@ LinearBVH::LinearBVH(hittable_list& mesh)
     prims.reserve(mesh.objects.size());
     build(mesh.objects, 0, mesh.objects.size());
 }
-
-// ─── LinearBVH – iterative traversal ─────────────────────────────────────────
 
 bool LinearBVH::hit(const ray& r, interval ray_t, hit_record& rec) const
 {
@@ -364,7 +356,6 @@ bool LinearBVH::hit(const ray& r, interval ray_t, hit_record& rec) const
         }
 
         if (node.n_prims > 0) {
-            // ── Leaf: test all primitives ────────────────────────────────────
             for (int i = 0; i < node.n_prims; i++) {
                 if (prims[node.offset + i].hit(r, ray_t, rec)) {
                     hit_anything = true;
@@ -389,8 +380,6 @@ bool LinearBVH::hit(const ray& r, interval ray_t, hit_record& rec) const
     }
     return hit_anything;
 }
-
-// ─── LinearBVH – bounding_box ─────────────────────────────────────────────────
 
 Boxes LinearBVH::bounding_box() const
 {

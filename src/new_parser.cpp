@@ -31,51 +31,88 @@ void newParser::parseTransform(const libconfig::Setting& s, IPrimitive& prim)
         s["shear"].lookupValue("zx", prim.shear_zx);
         s["shear"].lookupValue("zy", prim.shear_zy);
     }
+
+    prim.has_matrix = false;
+    if (s.exists("transform")) {
+        prim.has_matrix = true;
+        mat4 M; // Matrice Identité
+        const libconfig::Setting& transforms = s["transform"];
+
+        for (int i = 0; i < transforms.getLength(); i++) {
+            std::string type;
+            transforms[i].lookupValue("type", type);
+            mat4 step; // Identité
+
+            if (type == "translate") {
+                double tx = 0, ty = 0, tz = 0;
+                transforms[i].lookupValue("x", tx); transforms[i].lookupValue("y", ty); transforms[i].lookupValue("z", tz);
+                step.m[0][3] = tx; step.m[1][3] = ty; step.m[2][3] = tz;
+            } 
+            else if (type == "scale") {
+                double sx = 1, sy = 1, sz = 1;
+                if (transforms[i].lookupValue("value", sx)) { sy = sx; sz = sx; } // Scale global
+                else {
+                    transforms[i].lookupValue("x", sx); transforms[i].lookupValue("y", sy); transforms[i].lookupValue("z", sz);
+                }
+                step.m[0][0] = sx; step.m[1][1] = sy; step.m[2][2] = sz;
+            } 
+            else if (type == "rotate_x" || type == "rotate_y" || type == "rotate_z") {
+                double angle = 0;
+                transforms[i].lookupValue("angle", angle);
+                double rad = Random::degrees_to_radians(angle);
+                double c = std::cos(rad), sn = std::sin(rad);
+                
+                if (type == "rotate_x") {
+                    step.m[1][1] = c; step.m[1][2] = -sn; step.m[2][1] = sn; step.m[2][2] = c;
+                } else if (type == "rotate_y") {
+                    step.m[0][0] = c; step.m[0][2] = sn; step.m[2][0] = -sn; step.m[2][2] = c;
+                } else if (type == "rotate_z") {
+                    step.m[0][0] = c; step.m[0][1] = -sn; step.m[1][0] = sn; step.m[1][1] = c;
+                }
+            }
+            M = step * M;
+        }
+        prim.transform_matrix = M;
+    }
 }
 
 std::shared_ptr<hittable> newParser::applyTransform(std::shared_ptr<hittable> shape, const IPrimitive& prim)
 {
-    mat4 M; // Matrice Identité de base
+    mat4 M; 
 
-    if (prim.shear_xy != 0.0 || prim.shear_xz != 0.0 || 
-        prim.shear_yx != 0.0 || prim.shear_yz != 0.0 || 
-        prim.shear_zx != 0.0 || prim.shear_zy != 0.0) 
-    {
-        mat4 S;
-        S.m[0][1] = prim.shear_xy; S.m[0][2] = prim.shear_xz;
-        S.m[1][0] = prim.shear_yx; S.m[1][2] = prim.shear_yz;
-        S.m[2][0] = prim.shear_zx; S.m[2][1] = prim.shear_zy;
-        M = M * S;
-    }
-
-    if (prim.rotation_angle != 0.0) {
-        double rad = Random::degrees_to_radians(prim.rotation_angle);
-        double c = std::cos(rad);
-        double s = std::sin(rad);
-        mat4 R;
-
-        if (prim.rotation_type == "x") {
-            R.m[1][1] = c;  R.m[1][2] = -s;
-            R.m[2][1] = s;  R.m[2][2] = c;
-        } else if (prim.rotation_type == "y") {
-            R.m[0][0] = c;  R.m[0][2] = s;
-            R.m[2][0] = -s; R.m[2][2] = c;
-        } else if (prim.rotation_type == "z") {
-            R.m[0][0] = c;  R.m[0][1] = -s;
-            R.m[1][0] = s;  R.m[1][1] = c;
+    if (prim.has_matrix) {
+        M = prim.transform_matrix;
+    } 
+    else {
+        if (prim.shear_xy != 0.0 || prim.shear_xz != 0.0 || prim.shear_yx != 0.0 || prim.shear_yz != 0.0 || prim.shear_zx != 0.0 || prim.shear_zy != 0.0) {
+            mat4 S;
+            S.m[0][1] = prim.shear_xy; S.m[0][2] = prim.shear_xz;
+            S.m[1][0] = prim.shear_yx; S.m[1][2] = prim.shear_yz;
+            S.m[2][0] = prim.shear_zx; S.m[2][1] = prim.shear_zy;
+            M = M * S;
         }
-        M = M * R;
+
+        if (prim.rotation_angle != 0.0) {
+            double rad = Random::degrees_to_radians(prim.rotation_angle);
+            double c = std::cos(rad); double s = std::sin(rad);
+            mat4 R;
+            if (prim.rotation_type == "x") {
+                R.m[1][1] = c; R.m[1][2] = -s; R.m[2][1] = s; R.m[2][2] = c;
+            } else if (prim.rotation_type == "y") {
+                R.m[0][0] = c; R.m[0][2] = s; R.m[2][0] = -s; R.m[2][2] = c;
+            } else if (prim.rotation_type == "z") {
+                R.m[0][0] = c; R.m[0][1] = -s; R.m[1][0] = s; R.m[1][1] = c;
+            }
+            M = M * R;
+        }
+
+        if (prim.translate_x != 0.0 || prim.translate_y != 0.0 || prim.translate_z != 0.0) {
+            mat4 T;
+            T.m[0][3] = prim.translate_x; T.m[1][3] = prim.translate_y; T.m[2][3] = prim.translate_z;
+            M = T * M;
+        }
     }
 
-    if (prim.translate_x != 0.0 || prim.translate_y != 0.0 || prim.translate_z != 0.0) {
-        mat4 T;
-        T.m[0][3] = prim.translate_x;
-        T.m[1][3] = prim.translate_y;
-        T.m[2][3] = prim.translate_z;
-        M = T * M; // T multiplie M (L'ordre compte en algèbre linéaire !)
-    }
-
-    // Si la matrice M est toujours l'identité (aucun mouvement demandé), on renvoie la forme brute
     bool is_identity = true;
     for(int i=0; i<4; i++) {
         for(int j=0; j<4; j++) {
@@ -84,10 +121,7 @@ std::shared_ptr<hittable> newParser::applyTransform(std::shared_ptr<hittable> sh
         }
     }
 
-    if (is_identity)
-        return shape;
-
-    // Sinon, on englobe la forme dans TransformNode
+    if (is_identity) return shape;
     return std::make_shared<TransformNode>(shape, M);
 }
 
@@ -107,6 +141,108 @@ void newParser::parseColor(const libconfig::Setting& s, IPrimitive& prim)
     s["color"].lookupValue("r", prim.color_r);
     s["color"].lookupValue("g", prim.color_g);
     s["color"].lookupValue("b", prim.color_b);
+}
+
+std::shared_ptr<hittable> newParser::buildGroup(const libconfig::Setting& group_setting, std::shared_ptr<material> inherited_mat)
+{
+    hittable_list local_world;
+
+    IPrimitive group_prim;
+    parseTransform(group_setting, group_prim);
+
+    std::shared_ptr<material> current_mat = inherited_mat;
+    if (group_setting.exists("material")) {
+        IPrimitive dummy;
+        group_setting.lookupValue("material", dummy.material);
+        parseColor(group_setting, dummy);
+        current_mat = createShapeMat(dummy.material, dummy);
+    }
+
+    if (group_setting.exists("children")) {
+        const libconfig::Setting& children = group_setting["children"];
+
+        if (children.exists("groups")) {
+            for (int i = 0; i < children["groups"].getLength(); i++) {
+                local_world.add(buildGroup(children["groups"][i], current_mat));
+            }
+        }
+
+        if (children.exists("spheres")) {
+            for (int i = 0; i < children["spheres"].getLength(); i++) {
+                pSphere p;
+                const libconfig::Setting& s = children["spheres"][i];
+                parseTransform(s, p);
+                s.lookupValue("x", p.position_x); s.lookupValue("y", p.position_y); s.lookupValue("z", p.position_z);
+                s.lookupValue("r", p.radius);
+                
+                std::shared_ptr<material> shape_mat = current_mat;
+                if (s.exists("material")) { // Si l'enfant a sa propre couleur, il écrase l'héritage
+                    s.lookupValue("material", p.material); s.lookupValue("fuzz", p.fuzz);
+                    parseColor(s, p);
+                    shape_mat = createShapeMat(p.material, p);
+                }
+                local_world.add(createShape(point3(p.position_x, p.position_y, p.position_z), p.radius, shape_mat, p));
+            }
+        }
+
+        if (children.exists("cubes")) {
+            for (int i = 0; i < children["cubes"].getLength(); i++) {
+                pCube p;
+                const libconfig::Setting& s = children["cubes"][i];
+                parseTransform(s, p);
+                s["base"].lookupValue("x", p.position_x); s["base"].lookupValue("y", p.position_y); s["base"].lookupValue("z", p.position_z);
+                s["top"].lookupValue("x", p.top_x); s["top"].lookupValue("y", p.top_y); s["top"].lookupValue("z", p.top_z);
+                
+                std::shared_ptr<material> shape_mat = current_mat;
+                if (s.exists("material")) {
+                    s.lookupValue("material", p.material); s.lookupValue("fuzz", p.fuzz);
+                    parseColor(s, p);
+                    shape_mat = createShapeMat(p.material, p);
+                }
+                local_world.add(createShape(point3(p.position_x, p.position_y, p.position_z), point3(p.top_x, p.top_y, p.top_z), shape_mat, p));
+            }
+        }
+
+        if (children.exists("models")) {
+            for (int i = 0; i < children["models"].getLength(); i++) {
+                pModel m;
+                const libconfig::Setting& s = children["models"][i];
+                parseTransform(s, m);
+                s.lookupValue("file", m.filename);
+                s.lookupValue("scale", m.scale);
+                
+                std::shared_ptr<material> shape_mat = current_mat;
+                if (s.exists("material")) {
+                    s.lookupValue("material", m.material); s.lookupValue("fuzz", m.fuzz);
+                    if (m.material != "image") parseColor(s, m);
+                    if (m.material == "image" && !m.texture_file.empty())
+                        shape_mat = std::make_shared<lambertian>(std::make_shared<image_texture>(m.texture_file));
+                    else
+                        shape_mat = createShapeMat(m.material, m);
+                }
+
+                if (shape_mat) {
+                    std::shared_ptr<hittable> base_mesh;
+                    if (_mesh_cache.find(m.filename) != _mesh_cache.end()) {
+                        base_mesh = _mesh_cache[m.filename]; // Utilisation du CACHE
+                    } else {
+                        hittable_list mesh = loadOBJ(m.filename, shape_mat, m.scale);
+                        if (!mesh.objects.empty()) {
+                            auto lbvh = std::make_shared<LinearBVH>(mesh);
+                            _mesh_cache[m.filename] = lbvh;
+                            base_mesh = lbvh;
+                        }
+                    }
+                    if (base_mesh) local_world.add(applyTransform(base_mesh, m));
+                }
+            }
+        }
+
+        // TODO AJOUTER LES AUTRES FORMES
+    }
+
+    auto group_ptr = std::make_shared<hittable_list>(local_world);
+    return applyTransform(group_ptr, group_prim);
 }
 
 void newParser::parseCamera(void)
@@ -554,6 +690,13 @@ hittable_list newParser::setDataPrim(hittable_list world)
         world.add(shape);
     }
 
+    if (_root["primitives"].exists("groups")) {
+        const libconfig::Setting& groups = _root["primitives"]["groups"];
+        for (int i = 0; i < groups.getLength(); i++) {
+            world.add(buildGroup(groups[i]));
+        }
+    }
+
     return world;
 }
 
@@ -733,23 +876,32 @@ hittable_list newParser::setDataModels(hittable_list world)
             mat = createShapeMat(m.material, m);
         if (!mat) continue;
 
-        auto t0 = std::chrono::steady_clock::now();
-        hittable_list mesh = loadOBJ(m.filename, mat, m.scale);
-        auto t1 = std::chrono::steady_clock::now();
-        if (mesh.objects.empty()) continue;
+        std::shared_ptr<hittable> base_mesh;
 
-        std::clog << "loadOBJ: parsed " << mesh.objects.size() << " triangles in "
-                  << std::chrono::duration<double>(t1 - t0).count() << "s\n" << std::flush;
-        std::clog << "loadOBJ: building LinearBVH...\n" << std::flush;
-        auto lbvh = std::make_shared<LinearBVH>(mesh);
-        auto t2 = std::chrono::steady_clock::now();
-        std::clog << "loadOBJ: LinearBVH done in "
-                  << std::chrono::duration<double>(t2 - t1).count() << "s"
-                  << "  nodes=" << lbvh->node_count()
-                  << "  prims=" << lbvh->prim_count() << "\n" << std::flush;
-        std::shared_ptr<hittable> shape = lbvh;
-        shape = applyTransform(shape, m);
-        world.add(shape);
+        if (_mesh_cache.find(m.filename) != _mesh_cache.end()) {
+            base_mesh = _mesh_cache[m.filename];
+        } 
+        else {
+            auto t0 = std::chrono::steady_clock::now();
+            hittable_list mesh = loadOBJ(m.filename, mat, m.scale);
+            auto t1 = std::chrono::steady_clock::now();
+
+            if (mesh.objects.empty()) continue;
+
+            std::clog << "loadOBJ: parsed " << mesh.objects.size() << " triangles in "
+                      << std::chrono::duration<double>(t1 - t0).count() << "s\n" << std::flush;
+            std::clog << "loadOBJ: building LinearBVH...\n" << std::flush;
+
+            auto lbvh = std::make_shared<LinearBVH>(mesh);
+            auto t2 = std::chrono::steady_clock::now();
+            std::clog << "loadOBJ: LinearBVH done in "
+                      << std::chrono::duration<double>(t2 - t1).count() << "s\n" << std::flush;
+
+            _mesh_cache[m.filename] = lbvh;
+            base_mesh = lbvh;
+        }
+
+        world.add(applyTransform(base_mesh, m));
     }
     return world;
 }
@@ -1064,6 +1216,9 @@ void newParser::checkValidity(void)
         flag++;
     }
     if (_root["primitives"].exists("parametrics")) {
+        flag++;
+    }
+    if (_root["primitives"].exists("groups")) {
         flag++;
     }
     if (_root["primitives"].getLength() > flag) {

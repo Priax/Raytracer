@@ -55,6 +55,8 @@ public:
     double shear_yz = 0.0;
     double shear_zx = 0.0;
     double shear_zy = 0.0;
+    mat4 transform_matrix;
+    bool has_matrix = false;
     std::string type; /**< Type of the shape */
 };
 
@@ -459,6 +461,7 @@ private:
     std::shared_ptr<hittable> applyTransform(std::shared_ptr<hittable> shape, const IPrimitive &prim);
     void parseTransform(const libconfig::Setting& s, IPrimitive& prim);
     void parseColor(const libconfig::Setting& s, IPrimitive& prim);
+    std::shared_ptr<hittable> buildGroup(const libconfig::Setting& group_setting, std::shared_ptr<material> inherited_mat = nullptr);
 
     libconfig::Config &_cfg; /**< Reference to the libconfig configuration */
     libconfig::Setting &_root; /**< Reference to the root setting */
@@ -477,6 +480,8 @@ private:
     Primitives _primitives; /**< Collection of primitive shapes */
 
     std::vector <pPointLight> _lights; /**< Collection of light sources */
+
+    std::map<std::string, std::shared_ptr<hittable>> _mesh_cache;
 };
 
 #endif /* !NEW_PARSER_HPP_ */
