@@ -12,17 +12,6 @@ newParser::newParser(libconfig::Config &config) : _cfg(config), _root(_cfg.getRo
 {
 }
 
-std::shared_ptr<hittable> newParser::applyTransform(std::shared_ptr<hittable> shape, double rotation, const std::string& rotation_type, const vec3& translation)
-{
-    if (rotation_type == "x")
-        shape = std::make_shared<rotate_x>(shape, rotation);
-    else if (rotation_type == "y")
-        shape = std::make_shared<rotate_y>(shape, rotation);
-    else
-        shape = std::make_shared<rotate_z>(shape, rotation);
-    return std::make_shared<translate>(shape, translation);
-}
-
 void newParser::parseTransform(const libconfig::Setting& s, IPrimitive& prim)
 {
     if (s.exists("rotation")) {
@@ -34,6 +23,72 @@ void newParser::parseTransform(const libconfig::Setting& s, IPrimitive& prim)
         s["translation"].lookupValue("y", prim.translate_y);
         s["translation"].lookupValue("z", prim.translate_z);
     }
+    if (s.exists("shear")) {
+        s["shear"].lookupValue("xy", prim.shear_xy);
+        s["shear"].lookupValue("xz", prim.shear_xz);
+        s["shear"].lookupValue("yx", prim.shear_yx);
+        s["shear"].lookupValue("yz", prim.shear_yz);
+        s["shear"].lookupValue("zx", prim.shear_zx);
+        s["shear"].lookupValue("zy", prim.shear_zy);
+    }
+}
+
+std::shared_ptr<hittable> newParser::applyTransform(std::shared_ptr<hittable> shape, const IPrimitive& prim)
+{
+    mat4 M; // Matrice Identité de base
+
+    if (prim.shear_xy != 0.0 || prim.shear_xz != 0.0 || 
+        prim.shear_yx != 0.0 || prim.shear_yz != 0.0 || 
+        prim.shear_zx != 0.0 || prim.shear_zy != 0.0) 
+    {
+        mat4 S;
+        S.m[0][1] = prim.shear_xy; S.m[0][2] = prim.shear_xz;
+        S.m[1][0] = prim.shear_yx; S.m[1][2] = prim.shear_yz;
+        S.m[2][0] = prim.shear_zx; S.m[2][1] = prim.shear_zy;
+        M = M * S;
+    }
+
+    if (prim.rotation_angle != 0.0) {
+        double rad = Random::degrees_to_radians(prim.rotation_angle);
+        double c = std::cos(rad);
+        double s = std::sin(rad);
+        mat4 R;
+
+        if (prim.rotation_type == "x") {
+            R.m[1][1] = c;  R.m[1][2] = -s;
+            R.m[2][1] = s;  R.m[2][2] = c;
+        } else if (prim.rotation_type == "y") {
+            R.m[0][0] = c;  R.m[0][2] = s;
+            R.m[2][0] = -s; R.m[2][2] = c;
+        } else if (prim.rotation_type == "z") {
+            R.m[0][0] = c;  R.m[0][1] = -s;
+            R.m[1][0] = s;  R.m[1][1] = c;
+        }
+        M = M * R;
+    }
+
+    if (prim.translate_x != 0.0 || prim.translate_y != 0.0 || prim.translate_z != 0.0) {
+        mat4 T;
+        T.m[0][3] = prim.translate_x;
+        T.m[1][3] = prim.translate_y;
+        T.m[2][3] = prim.translate_z;
+        M = T * M; // T multiplie M (L'ordre compte en algèbre linéaire !)
+    }
+
+    // Si la matrice M est toujours l'identité (aucun mouvement demandé), on renvoie la forme brute
+    bool is_identity = true;
+    for(int i=0; i<4; i++) {
+        for(int j=0; j<4; j++) {
+            if (i == j && M.m[i][j] != 1.0) is_identity = false;
+            if (i != j && M.m[i][j] != 0.0) is_identity = false;
+        }
+    }
+
+    if (is_identity)
+        return shape;
+
+    // Sinon, on englobe la forme dans TransformNode
+    return std::make_shared<TransformNode>(shape, M);
 }
 
 void newParser::parseColor(const libconfig::Setting& s, IPrimitive& prim)
@@ -408,75 +463,97 @@ void newParser::parsePrimitives(void)
 //? gestion d'erreur
 //? formes nouvelles : triangles, cubes, ???
 //? rotations, transformations
-
 hittable_list newParser::setDataPrim(hittable_list world)
 {
     std::shared_ptr<material> my_mat;
     std::shared_ptr<hittable> shape;
+
     for (size_t i = 0; i != _primitives._spheres.size(); i++) {
         my_mat = createShapeMat(_primitives._spheres[i].material, _primitives._spheres[i]);
-        shape = createShape(point3(_primitives._spheres[i].position_x,
-        _primitives._spheres[i].position_y, _primitives._spheres[i].position_z),
-        _primitives._spheres[i].radius, my_mat, _primitives._spheres[i].rotation_angle, _primitives._spheres[i].rotation_type,
-        vec3(_primitives._spheres[i].translate_x, _primitives._spheres[i].translate_y, _primitives._spheres[i].translate_z));
+        shape = createShape(
+            point3(_primitives._spheres[i].position_x, _primitives._spheres[i].position_y, _primitives._spheres[i].position_z),
+            _primitives._spheres[i].radius, 
+            my_mat, 
+            _primitives._spheres[i]
+        );
         world.add(shape);
     }
+
     for (size_t i = 0; i != _primitives._cone.size(); i++) {
         my_mat = createShapeMat(_primitives._cone[i].material, _primitives._cone[i]);
-        shape = createShape(_primitives._cone[i].type, point3(_primitives._cone[i].position_x,
-        _primitives._cone[i].position_y, _primitives._cone[i].position_z),
-        _primitives._cone[i].radius, _primitives._cone[i]._height, my_mat, _primitives._cone[i].rotation_angle,
-        _primitives._cone[i].rotation_type,
-        vec3(_primitives._cone[i].translate_x, _primitives._cone[i].translate_y, _primitives._cone[i].translate_z));
+        shape = createShape(
+            _primitives._cone[i].type, 
+            point3(_primitives._cone[i].position_x, _primitives._cone[i].position_y, _primitives._cone[i].position_z),
+            _primitives._cone[i].radius, 
+            _primitives._cone[i]._height, 
+            my_mat, 
+            _primitives._cone[i]
+        );
         world.add(shape);
     }
+
     for (size_t i = 0; i != _primitives._cylinders.size(); i++) {
         my_mat = createShapeMat(_primitives._cylinders[i].material, _primitives._cylinders[i]);
-        shape = createShape(_primitives._cylinders[i].type, point3(_primitives._cylinders[i].base_x,
-        _primitives._cylinders[i].base_y, _primitives._cylinders[i].base_z), point3(_primitives._cylinders[i].position_x,
-        _primitives._cylinders[i].position_y, _primitives._cylinders[i].position_z), _primitives._cylinders[i].radius, my_mat,
-        _primitives._cylinders[i].rotation_angle, _primitives._cylinders[i].rotation_type, vec3(_primitives._cylinders[i].translate_x,
-        _primitives._cylinders[i].translate_y, _primitives._cylinders[i].translate_z));
+        shape = createShape(
+            _primitives._cylinders[i].type, 
+            point3(_primitives._cylinders[i].base_x, _primitives._cylinders[i].base_y, _primitives._cylinders[i].base_z), 
+            point3(_primitives._cylinders[i].position_x, _primitives._cylinders[i].position_y, _primitives._cylinders[i].position_z), 
+            _primitives._cylinders[i].radius, 
+            my_mat,
+            _primitives._cylinders[i]
+        );
         world.add(shape);
     }
+
     for (size_t i = 0; i != _primitives._planes.size(); i++) {
         my_mat = createShapeMat(_primitives._planes[i].material, _primitives._planes[i]);
-        shape = createShape(point3(_primitives._planes[i].position_x, _primitives._planes[i].position_y, _primitives._planes[i].position_z),
-        point3(_primitives._planes[i].dir_x, _primitives._planes[i].dir_y, _primitives._planes[i].dir_z),
-        vec3(_primitives._planes[i].axis_x, _primitives._planes[i].axis_y, _primitives._planes[i].axis_z), my_mat,
-        _primitives._planes[i].rotation_angle, _primitives._planes[i].rotation_type,
-        vec3(_primitives._planes[i].translate_x, _primitives._planes[i].translate_y, _primitives._planes[i].translate_z));
+        shape = createShape(
+            point3(_primitives._planes[i].position_x, _primitives._planes[i].position_y, _primitives._planes[i].position_z),
+            point3(_primitives._planes[i].dir_x, _primitives._planes[i].dir_y, _primitives._planes[i].dir_z),
+            vec3(_primitives._planes[i].axis_x, _primitives._planes[i].axis_y, _primitives._planes[i].axis_z), 
+            my_mat,
+            _primitives._planes[i]
+        );
         world.add(shape);
     }
+
     for (size_t i = 0; i != _primitives._cubes.size(); i++) {
         my_mat = createShapeMat(_primitives._cubes[i].material, _primitives._cubes[i]);
-        shape = createShape(point3(_primitives._cubes[i].position_x, _primitives._cubes[i].position_y, _primitives._cubes[i].position_z),
-        point3(_primitives._cubes[i].top_x, _primitives._cubes[i].top_y, _primitives._cubes[i].top_z), my_mat,
-        _primitives._cubes[i].rotation_angle, _primitives._cubes[i].rotation_type, vec3(_primitives._cubes[i].translate_x,
-        _primitives._cubes[i].translate_y, _primitives._cubes[i].translate_z));
+        shape = createShape(
+            point3(_primitives._cubes[i].position_x, _primitives._cubes[i].position_y, _primitives._cubes[i].position_z),
+            point3(_primitives._cubes[i].top_x, _primitives._cubes[i].top_y, _primitives._cubes[i].top_z), 
+            my_mat,
+            _primitives._cubes[i]
+        );
         world.add(shape);
     }
+
     for (size_t i = 0; i != _primitives._triangles.size(); i++) {
         my_mat = createShapeMat(_primitives._triangles[i].material, _primitives._triangles[i]);
-        shape = createShape(point3(_primitives._triangles[i].position_x, _primitives._triangles[i].position_y,
-        _primitives._triangles[i].position_z), point3(_primitives._triangles[i].left_x, _primitives._triangles[i].left_y,
-        _primitives._triangles[i].left_z), point3(_primitives._triangles[i].right_x, _primitives._triangles[i].right_y,
-        _primitives._triangles[i].right_z), my_mat, _primitives._triangles[i].rotation_angle,
-        _primitives._triangles[i].rotation_type,
-        vec3(_primitives._triangles[i].translate_x, _primitives._triangles[i].translate_y, _primitives._triangles[i].translate_z));
+        shape = createShape(
+            point3(_primitives._triangles[i].position_x, _primitives._triangles[i].position_y, _primitives._triangles[i].position_z), 
+            point3(_primitives._triangles[i].left_x, _primitives._triangles[i].left_y, _primitives._triangles[i].left_z), 
+            point3(_primitives._triangles[i].right_x, _primitives._triangles[i].right_y, _primitives._triangles[i].right_z), 
+            my_mat, 
+            _primitives._triangles[i]
+        );
         world.add(shape);
     }
+
     for (size_t i = 0; i != _primitives._pyramids.size(); i++) {
         my_mat = createShapeMat(_primitives._pyramids[i].material, _primitives._pyramids[i]);
-        shape = createShape(point3(_primitives._pyramids[i].position_x, _primitives._pyramids[i].position_y, _primitives._pyramids[i].position_z),
-        point3(_primitives._pyramids[i].basis_1_x, _primitives._pyramids[i].basis_1_y, _primitives._pyramids[i].basis_1_z),
-        point3(_primitives._pyramids[i].basis_2_x, _primitives._pyramids[i].basis_2_y, _primitives._pyramids[i].basis_2_z),
-        point3(_primitives._pyramids[i].basis_3_x, _primitives._pyramids[i].basis_3_y, _primitives._pyramids[i].basis_3_z),
-        point3(_primitives._pyramids[i].basis_4_x, _primitives._pyramids[i].basis_4_y, _primitives._pyramids[i].basis_4_z),
-        my_mat, _primitives._pyramids[i].rotation_angle, _primitives._pyramids[i].rotation_type,
-        vec3(_primitives._pyramids[i].translate_x, _primitives._pyramids[i].translate_y, _primitives._pyramids[i].translate_z));
+        shape = createShape(
+            point3(_primitives._pyramids[i].position_x, _primitives._pyramids[i].position_y, _primitives._pyramids[i].position_z),
+            point3(_primitives._pyramids[i].basis_1_x, _primitives._pyramids[i].basis_1_y, _primitives._pyramids[i].basis_1_z),
+            point3(_primitives._pyramids[i].basis_2_x, _primitives._pyramids[i].basis_2_y, _primitives._pyramids[i].basis_2_z),
+            point3(_primitives._pyramids[i].basis_3_x, _primitives._pyramids[i].basis_3_y, _primitives._pyramids[i].basis_3_z),
+            point3(_primitives._pyramids[i].basis_4_x, _primitives._pyramids[i].basis_4_y, _primitives._pyramids[i].basis_4_z),
+            my_mat, 
+            _primitives._pyramids[i]
+        );
         world.add(shape);
     }
+
     return world;
 }
 
@@ -528,45 +605,45 @@ hittable_list newParser::setDataLights(hittable_list lights)
     return lights;
 }
 
-std::shared_ptr<hittable> newParser::createShape(point3 pos, double radius, std::shared_ptr<material> material_ptr, double rotation, std::string rotation_type, vec3 translation)
+std::shared_ptr<hittable> newParser::createShape(point3 pos, double radius, std::shared_ptr<material> material_ptr, const IPrimitive& prim)
 {
-    return applyTransform(std::make_shared<sphere>(pos, radius, material_ptr), rotation, rotation_type, translation);
+    return applyTransform(std::make_shared<sphere>(pos, radius, material_ptr), prim);
 }
 
-std::shared_ptr<hittable> newParser::createShape(std::string shape, point3 pos, double radius, double height, std::shared_ptr<material> material_ptr, double rotation, std::string rotation_type, vec3 translation)
+std::shared_ptr<hittable> newParser::createShape(std::string shape, point3 pos, double radius, double height, std::shared_ptr<material> material_ptr, const IPrimitive& prim)
 {
     std::shared_ptr<hittable> my_shape = (shape == "limcones")
         ? std::static_pointer_cast<hittable>(std::make_shared<LimCone>(pos, radius, height, material_ptr))
         : std::static_pointer_cast<hittable>(std::make_shared<Cone>(pos, radius, height, material_ptr));
-    return applyTransform(my_shape, rotation, rotation_type, translation);
+    return applyTransform(my_shape, prim);
 }
 
-std::shared_ptr<hittable> newParser::createShape(std::string shape, point3 base, point3 top, double radius, std::shared_ptr<material> material_ptr, double rotation, std::string rotation_type, vec3 translation)
+std::shared_ptr<hittable> newParser::createShape(std::string shape, point3 base, point3 top, double radius, std::shared_ptr<material> material_ptr, const IPrimitive& prim)
 {
     std::shared_ptr<hittable> my_shape = (shape == "limcylinders")
         ? std::static_pointer_cast<hittable>(std::make_shared<LimCylinder>(base, top, radius, material_ptr))
         : std::static_pointer_cast<hittable>(std::make_shared<Cylinder>(base, top, radius, material_ptr));
-    return applyTransform(my_shape, rotation, rotation_type, translation);
+    return applyTransform(my_shape, prim);
 }
 
-std::shared_ptr<hittable> newParser::createShape(point3 pos, point3 dir, vec3 rot, std::shared_ptr<material> material_ptr, double rotation, std::string rotation_type, vec3 translation)
+std::shared_ptr<hittable> newParser::createShape(point3 pos, point3 dir, vec3 rot, std::shared_ptr<material> material_ptr, const IPrimitive& prim)
 {
-    return applyTransform(std::make_shared<quad>(pos, dir, rot, material_ptr), rotation, rotation_type, translation);
+    return applyTransform(std::make_shared<quad>(pos, dir, rot, material_ptr), prim);
 }
 
-std::shared_ptr<hittable> newParser::createShape(point3 bot, point3 top, std::shared_ptr<material> material_ptr, double rotation, std::string rotation_type, vec3 translation)
+std::shared_ptr<hittable> newParser::createShape(point3 bot, point3 top, std::shared_ptr<material> material_ptr, const IPrimitive& prim)
 {
-    return applyTransform(std::make_shared<Cube>(bot, top, material_ptr), rotation, rotation_type, translation);
+    return applyTransform(std::make_shared<Cube>(bot, top, material_ptr), prim);
 }
 
-std::shared_ptr<hittable> newParser::createShape(point3 down, point3 left, point3 right, std::shared_ptr<material> material_ptr, double rotation, std::string rotation_type, vec3 translation)
+std::shared_ptr<hittable> newParser::createShape(point3 down, point3 left, point3 right, std::shared_ptr<material> material_ptr, const IPrimitive& prim)
 {
-    return applyTransform(std::make_shared<triangle>(down, left, right, material_ptr), rotation, rotation_type, translation);
+    return applyTransform(std::make_shared<triangle>(down, left, right, material_ptr), prim);
 }
 
-std::shared_ptr<hittable> newParser::createShape(point3 top, point3 basis1, point3 basis2, point3 basis3, point3 basis4, std::shared_ptr<material> material_ptr, double rotation, std::string rotation_type, vec3 translation)
+std::shared_ptr<hittable> newParser::createShape(point3 top, point3 basis1, point3 basis2, point3 basis3, point3 basis4, std::shared_ptr<material> material_ptr, const IPrimitive& prim)
 {
-    return applyTransform(std::make_shared<pyramide>(top, basis1, basis2, basis3, basis4, material_ptr), rotation, rotation_type, translation);
+    return applyTransform(std::make_shared<pyramide>(top, basis1, basis2, basis3, basis4, material_ptr), prim);
 }
 
 std::shared_ptr<metal> newParser::createMaterial(color colors, double fuzz)
@@ -671,8 +748,7 @@ hittable_list newParser::setDataModels(hittable_list world)
                   << "  nodes=" << lbvh->node_count()
                   << "  prims=" << lbvh->prim_count() << "\n" << std::flush;
         std::shared_ptr<hittable> shape = lbvh;
-        shape = applyTransform(shape, m.rotation_angle, m.rotation_type,
-                               vec3(m.translate_x, m.translate_y, m.translate_z));
+        shape = applyTransform(shape, m);
         world.add(shape);
     }
     return world;
@@ -801,9 +877,7 @@ hittable_list newParser::setDataParametrics(hittable_list world)
         auto surf = buildParametricSurface(p, mat);
  
         std::shared_ptr<hittable> shape = surf;
-        shape = applyTransform(shape,
-                               p.rotation_angle, p.rotation_type,
-                               vec3(p.translate_x, p.translate_y, p.translate_z));
+        shape = applyTransform(shape, p);
         world.add(shape);
     }
     return world;

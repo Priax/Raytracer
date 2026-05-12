@@ -45,10 +45,16 @@ public:
     double fuzz; /**< Fuzziness of the shape */
     double density = 0.0; /**< Density for Beer-Lambert absorption */
     double rotation_angle = 0; /**< Rotation angle */
+    std::string rotation_type = "y"; /**< Rotation type */
     double translate_x = 0; /**< X-coordinate translation */
     double translate_y = 0; /**< Y-coordinate translation */
     double translate_z = 0; /**< Z-coordinate translation */
-    std::string rotation_type = "y"; /**< Rotation type */
+    double shear_xy = 0.0;
+    double shear_xz = 0.0;
+    double shear_yx = 0.0;
+    double shear_yz = 0.0;
+    double shear_zx = 0.0;
+    double shear_zy = 0.0;
     std::string type; /**< Type of the shape */
 };
 
@@ -263,26 +269,22 @@ public:
      * @param pos Position of the shape
      * @param radius Radius of the shape
      * @param material_ptr Pointer to the material of the shape
-     * @param rotation Rotation of the shape
-     * @param rotation_type Type of rotation
-     * @param translation Translation of the shape
+     * @param prim Adress of the primitive for transformation matrix
      * @return Shared pointer to the created shape
      */
-    std::shared_ptr<hittable> createShape(point3 pos, double radius, std::shared_ptr<material> material_ptr, double rotation, std::string rotation_type, vec3 translation);
+    std::shared_ptr<hittable> createShape(point3 pos, double radius, std::shared_ptr<material> material_ptr, const IPrimitive& prim);
 
     /**
      * @brief Creates a shape object with specified parameters.
      * @param shape Type of the shape
-     * @param base Base position of the shape
-     * @param top Top position of the shape
+     * @param pos Position of the shape
      * @param radius Radius of the shape
+     * @param height Height of the shape
      * @param material_ptr Pointer to the material of the shape
-     * @param rotation Rotation of the shape
-     * @param rotation_type Type of rotation
-     * @param translation Translation of the shape
+     * @param prim Adress of the primitive for transformation matrix
      * @return Shared pointer to the created shape
      */
-    std::shared_ptr<hittable> createShape(std::string shape, point3 base, point3 top, double radius, std::shared_ptr<material> material_ptr, double rotation, std::string rotation_type, vec3 translation);
+    std::shared_ptr<hittable> createShape(std::string shape, point3 pos, double radius, double height, std::shared_ptr<material> material_ptr, const IPrimitive& prim);
 
     /**
      * @brief Creates a shape object with specified parameters.
@@ -296,7 +298,7 @@ public:
      * @param translation Translation of the shape
      * @return Shared pointer to the created shape
      */
-    std::shared_ptr<hittable> createShape(std::string shape, point3 pos, double radius, double height, std::shared_ptr<material> material_ptr, double rotation, std::string rotation_type, vec3 translation);
+    std::shared_ptr<hittable> createShape(std::string shape, point3 base, point3 top, double radius, std::shared_ptr<material> material_ptr, const IPrimitive& prim);
 
     /**
      * @brief Creates a shape object with specified parameters.
@@ -309,7 +311,7 @@ public:
      * @param translation Translation of the shape
      * @return Shared pointer to the created shape
      */
-    std::shared_ptr<hittable> createShape(point3 pos, point3 dir, vec3 rot, std::shared_ptr<material> material_ptr, double rotation, std::string rotation_type, vec3 translation);
+    std::shared_ptr<hittable> createShape(point3 pos, point3 dir, vec3 rot, std::shared_ptr<material> material_ptr, const IPrimitive& prim);
 
     /**
      * @brief Creates a shape object with specified parameters.
@@ -321,7 +323,7 @@ public:
      * @param translation Translation of the shape
      * @return Shared pointer to the created shape
      */
-    std::shared_ptr<hittable> createShape(point3 bot, point3 top, std::shared_ptr<material> material_ptr, double rotation, std::string rotation_type, vec3 translation);
+    std::shared_ptr<hittable> createShape(point3 bot, point3 top, std::shared_ptr<material> material_ptr, const IPrimitive& prim);
 
     /**
      * @brief Creates a shape object with specified parameters.
@@ -334,7 +336,7 @@ public:
      * @param translation Translation of the shape
      * @return Shared pointer to the created shape
      */
-    std::shared_ptr<hittable> createShape(point3 down, point3 left, point3 right, std::shared_ptr<material> material_ptr, double rotation, std::string rotation_type, vec3 translation);
+    std::shared_ptr<hittable> createShape(point3 down, point3 left, point3 right, std::shared_ptr<material> material_ptr, const IPrimitive& prim);
 
     /**
      * @brief Creates a shape object with specified parameters.
@@ -349,7 +351,7 @@ public:
      * @param translation Translation of the shape
      * @return Shared pointer to the created shape
      */
-    std::shared_ptr<hittable> createShape(point3 top, point3 basis1, point3 basis2, point3 basis3, point3 basis4, std::shared_ptr<material> material_ptr, double rotation, std::string rotation_type, vec3 translation);
+    std::shared_ptr<hittable> createShape(point3 top, point3 basis1, point3 basis2, point3 basis3, point3 basis4, std::shared_ptr<material> material_ptr, const IPrimitive& prim);
 
     /**
      * @brief Creates a Lambertian material.
@@ -454,7 +456,7 @@ public:
     size_t getCameraSize(std::string element);
 
 private:
-    std::shared_ptr<hittable> applyTransform(std::shared_ptr<hittable> shape, double rotation, const std::string& rotation_type, const vec3& translation);
+    std::shared_ptr<hittable> applyTransform(std::shared_ptr<hittable> shape, const IPrimitive &prim);
     void parseTransform(const libconfig::Setting& s, IPrimitive& prim);
     void parseColor(const libconfig::Setting& s, IPrimitive& prim);
 

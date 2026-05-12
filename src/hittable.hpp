@@ -11,8 +11,61 @@
 #include "ray.hpp"
 #include "interval.hpp"
 #include "boxes.hpp"
+#include <memory>
 
 class material;
+
+/**
+ * @brief Structure utilitaire pour les matrices de transformation 4x4
+ */
+struct mat4 {
+    double m[4][4];
+
+    mat4() {
+        for (int i = 0; i < 4; i++) {
+            for (int j = 0; j < 4; j++) {
+                m[i][j] = (i == j) ? 1.0 : 0.0;
+            }
+        }
+    }
+
+    mat4 operator*(const mat4& other) const {
+        mat4 res;
+        for (int i = 0; i < 4; i++) {
+            for (int j = 0; j < 4; j++) {
+                res.m[i][j] = m[i][0] * other.m[0][j] + m[i][1] * other.m[1][j] +
+                              m[i][2] * other.m[2][j] + m[i][3] * other.m[3][j];
+            }
+        }
+        return res;
+    }
+
+    point3 mult_point(const point3& p) const {
+        return point3(
+            m[0][0] * p.x() + m[0][1] * p.y() + m[0][2] * p.z() + m[0][3],
+            m[1][0] * p.x() + m[1][1] * p.y() + m[1][2] * p.z() + m[1][3],
+            m[2][0] * p.x() + m[2][1] * p.y() + m[2][2] * p.z() + m[2][3]
+        );
+    }
+
+    vec3 mult_dir(const vec3& v) const {
+        return vec3(
+            m[0][0] * v.x() + m[0][1] * v.y() + m[0][2] * v.z(),
+            m[1][0] * v.x() + m[1][1] * v.y() + m[1][2] * v.z(),
+            m[2][0] * v.x() + m[2][1] * v.y() + m[2][2] * v.z()
+        );
+    }
+
+    mat4 transpose() const {
+        mat4 res;
+        for (int i = 0; i < 4; i++)
+            for (int j = 0; j < 4; j++)
+                res.m[i][j] = m[j][i];
+        return res;
+    }
+
+    mat4 inverse() const;
+};
 
 /**
  * @brief Represents information about a hit point.
@@ -27,11 +80,6 @@ public:
     double v; /**< The v texture coordinate. */
     bool front_face; /**< Indicates if the ray hit the front face of the object. */
 
-    /**
-     * @brief Sets the normal direction based on the ray and outward normal.
-     * @param r The incident ray.
-     * @param outward_normal The outward normal of the hit object.
-     */
     void set_face_normal(const ray& r, const vec3& outward_normal);
 };
 
@@ -42,122 +90,94 @@ class hittable {
 public:
     virtual ~hittable() = default;
 
-    /**
-     * @brief Checks if a ray hits the object.
-     * @param r The ray to check for intersection.
-     * @param ray_t The interval of the ray.
-     * @param rec The hit record to update if a hit is found.
-     * @return True if the ray hits the object, false otherwise.
-     */
     virtual bool hit(const ray& r, interval ray_t, hit_record& rec) const = 0;
-
-    /**
-     * @brief Computes the bounding box of the hittable object.
-     * @return The bounding box of the object.
-     */
     virtual Boxes bounding_box() const = 0;
-
-    /**
-     * @brief Computes the probability density function value.
-     * @param origin The origin point.
-     * @param direction The direction vector.
-     * @return The probability density function value.
-     */
     virtual double pdf_value(const point3& origin, const vec3& direction) const;
-
-    /**
-     * @brief Generates a random direction from the hittable object.
-     * @param origin The origin point.
-     * @return A random direction vector.
-     */
     virtual vec3 random(const point3& origin) const;
 };
 
-/**
- * @brief Represents a translation transformation applied to a hittable object.
- */
 class translate : public hittable {
 public:
-    /**
-     * @brief Constructs a translation transformation.
-     * @param object The hittable object to be translated.
-     * @param offset The translation offset.
-     */
     translate(std::shared_ptr<hittable> object, const vec3& offset);
-
     bool hit(const ray& r, interval ray_t, hit_record& rec) const override;
     Boxes bounding_box() const override;
-
 private:
-    std::shared_ptr<hittable> object; /**< The hittable object being translated. */
-    vec3 offset; /**< The translation offset. */
-    Boxes bbox; /**< The bounding box of the translated object. */
+    std::shared_ptr<hittable> object;
+    vec3 offset;
+    Boxes bbox;
 };
 
-/**
- * @brief Represents a rotation transformation applied to a hittable object around the y-axis.
- */
 class rotate_y : public hittable {
 public:
-    /**
-     * @brief Constructs a rotation transformation around the y-axis.
-     * @param object The hittable object to be rotated.
-     * @param angle The rotation angle (in radians).
-     */
     rotate_y(std::shared_ptr<hittable> object, double angle);
+    bool hit(const ray& r, interval ray_t, hit_record& rec) const override;
+    Boxes bounding_box() const override;
+private:
+    std::shared_ptr<hittable> object;
+    double sin_theta;
+    double cos_theta;
+    Boxes bbox;
+};
+
+class rotate_x : public hittable {
+public:
+    rotate_x(std::shared_ptr<hittable> object, double angle);
+    bool hit(const ray &r, interval ray_t, hit_record &rec) const override;
+    Boxes bounding_box() const override;
+private:
+    std::shared_ptr<hittable> object;
+    double sin_theta;
+    double cos_theta;
+    Boxes bbox;
+};
+
+class rotate_z : public hittable {
+public:
+    rotate_z(std::shared_ptr<hittable> object, double angle);
+    bool hit(const ray &r, interval ray_t, hit_record &rec) const override;
+    Boxes bounding_box() const override;
+private:
+    std::shared_ptr<hittable> object;
+    double sin_theta;
+    double cos_theta;
+    Boxes bbox;
+};
+
+class shear : public hittable {
+public:
+    shear(std::shared_ptr<hittable> object, double hxy, double hxz, double hyx, double hyz, double hzx, double hzy);
+    bool hit(const ray& r, interval ray_t, hit_record& rec) const override;
+    Boxes bounding_box() const override;
+private:
+    std::shared_ptr<hittable> object;
+    Boxes bbox;
+    double m[3][3];
+    double inv[3][3];
+    double invT[3][3];
+    vec3 multiply_matrix(const vec3& v, const double mat[3][3]) const;
+};
+
+/**
+ * @brief Un Noeud de graphe de scène capable d'appliquer n'importe quelle
+ * combinaison de translation, rotation, scale et shear via une matrice 4x4.
+ */
+class TransformNode : public hittable {
+public:
+    /**
+     * @param obj L'objet à transformer
+     * @param transform_matrix La matrice 4x4 finale représentant la transformation
+     */
+    TransformNode(std::shared_ptr<hittable> obj, const mat4& transform_matrix);
 
     bool hit(const ray& r, interval ray_t, hit_record& rec) const override;
     Boxes bounding_box() const override;
 
 private:
-    std::shared_ptr<hittable> object; /**< The hittable object being rotated. */
-    double sin_theta; /**< The sine of the rotation angle. */
-    double cos_theta; /**< The cosine of the rotation angle. */
-    Boxes bbox; /**< The bounding box of the rotated object. */
-};
-
-/**
- * @brief Represents a rotation transformation applied to a hittable object around the x-axis.
- */
-class rotate_x : public hittable {
-public:
-    /**
-     * @brief Constructs a rotation transformation around the x-axis.
-     * @param object The hittable object to be rotated.
-     * @param angle The rotation angle (in radians).
-     */
-    rotate_x(std::shared_ptr<hittable> object, double angle);
-
-    bool hit(const ray &r, interval ray_t, hit_record &rec) const override;
-    Boxes bounding_box() const override;
-
-private:
-    std::shared_ptr<hittable> object; /**< The hittable object being rotated. */
-    double sin_theta; /**< The sine of the rotation angle. */
-    double cos_theta; /**< The cosine of the rotation angle. */
-    Boxes bbox; /**< The bounding box of the rotated object. */
-};
-
-/**
- * @brief Represents a rotation transformation applied to a hittable object around the z-axis.
- */
-class rotate_z : public hittable {
-public:
-    /**
-     * @brief Constructs a rotation transformation around the z-axis.
-     * @param object The hittable object to be rotated.
-     * @param angle The rotation angle (in radians).
-     */
-    rotate_z(std::shared_ptr<hittable> object, double angle);
-
-    bool hit(const ray &r, interval ray_t, hit_record &rec) const override;
-    Boxes bounding_box() const override;
-
-private:
-    std::shared_ptr<hittable> object; /**< The hittable object being rotated. */
-    double sin_theta; /**< The sine of the rotation angle. */
-    double cos_theta; /**< The cosine of the rotation angle. */
-    Boxes bbox; /**< The bounding box of the rotated object. */
+    std::shared_ptr<hittable> object;
+    mat4 M;       // Matrice Espace Objet -> Monde
+    mat4 Minv;    // Matrice Espace Monde -> Objet
+    mat4 MinvT;   // Transposée de l'inverse (Pour les normales)
+    Boxes bbox;
 };
 
 #endif
