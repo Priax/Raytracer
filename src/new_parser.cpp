@@ -536,25 +536,38 @@ pPointLight newParser::parseLitCone(const libconfig::Setting &light)
 }
 void newParser::parseLights(void)
 {
-    const libconfig::Setting &light = _root["lights"]["point"];
-    pPointLight newL;
-    std::string name;
-    for (int i = 0; i != light.getLength(); i++) {
-        light[i].lookupValue("shape", name);
-        if (name == "sphere") {
-            newL = parseLitSphere(light[i]);
-            _lights.push_back(newL);
-            continue;
+    if (_root["lights"].exists("point")) {
+        const libconfig::Setting &light = _root["lights"]["point"];
+        pPointLight newL;
+        std::string name;
+        for (int i = 0; i != light.getLength(); i++) {
+            light[i].lookupValue("shape", name);
+            if (name == "sphere") {
+                newL = parseLitSphere(light[i]);
+                _lights.push_back(newL);
+            }
+            else if (name == "cylinder") {
+                newL = parseLitCylinder(light[i]);
+                _lights.push_back(newL);
+            }
+            else if (name == "cone") {
+                newL = parseLitCone(light[i]);
+                _lights.push_back(newL);
+            }
         }
-        if (name == "cylinder") {
-            newL = parseLitCylinder(light[i]);
-            _lights.push_back(newL);
-            continue;
-        }
-        if (name == "cone") {
-            newL = parseLitCone(light[i]);
-            _lights.push_back(newL);
-            continue;
+    }
+
+    if (_root["lights"].exists("directional")) {
+        const libconfig::Setting &dirlight = _root["lights"]["directional"];
+        for (int i = 0; i < dirlight.getLength(); i++) {
+            pDirLight dL;
+            dirlight[i]["dir"].lookupValue("x", dL.dir_x);
+            dirlight[i]["dir"].lookupValue("y", dL.dir_y);
+            dirlight[i]["dir"].lookupValue("z", dL.dir_z);
+            dirlight[i]["color"].lookupValue("r", dL.color_r);
+            dirlight[i]["color"].lookupValue("g", dL.color_g);
+            dirlight[i]["color"].lookupValue("b", dL.color_b);
+            _dir_lights.push_back(dL);
         }
     }
 }
@@ -697,6 +710,37 @@ hittable_list newParser::setDataPrim(hittable_list world)
         }
     }
 
+    if (_root["primitives"].exists("imports")) {
+        const libconfig::Setting& imports = _root["primitives"]["imports"];
+        for (int i = 0; i < imports.getLength(); i++) {
+            std::string file;
+            if (imports[i].lookupValue("file", file)) {
+                try {
+                    libconfig::Config sub_cfg;
+                    sub_cfg.readFile(file.c_str());
+
+                    newParser sub_parser(sub_cfg);
+                    sub_parser.parsePrimitives(); 
+
+                    hittable_list sub_world;
+                    sub_world = sub_parser.setDataPrim(sub_world);
+                    sub_world = sub_parser.setDataModels(sub_world);
+                    sub_world = sub_parser.setDataParametrics(sub_world);
+
+                    IPrimitive import_prim;
+                    parseTransform(imports[i], import_prim);
+
+                    world.add(applyTransform(std::make_shared<hittable_list>(sub_world), import_prim));
+
+                } catch (const libconfig::FileIOException& fioex) {
+                    std::cerr << "Erreur: Impossible d'ouvrir la sous-scène : " << file << std::endl;
+                } catch (const libconfig::ParseException& pex) {
+                    std::cerr << "Erreur de syntaxe dans " << file << " à la ligne " << pex.getLine() << " - " << pex.getError() << std::endl;
+                }
+            }
+        }
+    }
+
     return world;
 }
 
@@ -745,6 +789,27 @@ hittable_list newParser::setDataLights(hittable_list lights)
             _lights[i]._position_sphere.radius, std::make_shared<diffuse_light>(color(_lights[i]._position_sphere.color_r, _lights[i]._position_sphere.color_g, _lights[i]._position_sphere.color_b))));
         }
     }
+
+    for (const auto& dl : _dir_lights) {
+        vec3 dir(dl.dir_x, dl.dir_y, dl.dir_z);
+        dir = Vec3Utils::unit_vector(dir);
+
+        double sun_distance = 10000.0;
+        point3 sun_center = point3(0, 0, 0) - (dir * sun_distance);
+
+        double sun_radius = sun_distance * 0.004625;
+
+        double intensity_multiplier = (sun_distance * sun_distance) / (sun_radius * sun_radius * pi);
+        color physical_color(
+            dl.color_r * intensity_multiplier,
+            dl.color_g * intensity_multiplier,
+            dl.color_b * intensity_multiplier
+        );
+
+        auto mat = std::make_shared<diffuse_light>(physical_color);
+        lights.add(std::make_shared<sphere>(sun_center, sun_radius, mat));
+    }
+
     return lights;
 }
 
@@ -1219,6 +1284,9 @@ void newParser::checkValidity(void)
         flag++;
     }
     if (_root["primitives"].exists("groups")) {
+        flag++;
+    }
+    if (_root["primitives"].exists("imports")) {
         flag++;
     }
     if (_root["primitives"].getLength() > flag) {

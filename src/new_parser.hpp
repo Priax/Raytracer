@@ -160,6 +160,19 @@ public:
     pPlanes _position_plane; /**< Position plane */
 };
 
+/**
+ * @brief Class representing a directional light source.
+ */
+class pDirLight {
+public:
+    double dir_x;
+    double dir_y;
+    double dir_z;
+    double color_r;
+    double color_g;
+    double color_b;
+};
+
 struct pParametric : public IPrimitive {
     std::string surface_type;   // "torus", "klein", "mobius", "wave", "spring"
     double param1 = 1.0;        // R majeur (torus), amplitude (wave), …
@@ -480,8 +493,10 @@ private:
     Primitives _primitives; /**< Collection of primitive shapes */
 
     std::vector <pPointLight> _lights; /**< Collection of light sources */
+    std::vector <pDirLight> _dir_lights; // NOUVEAU : Collection des lumières directionnelles
 
     std::map<std::string, std::shared_ptr<hittable>> _mesh_cache;
+
 };
 
 #endif /* !NEW_PARSER_HPP_ */
