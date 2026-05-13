@@ -22,6 +22,7 @@
  *
  * @param filename Path to the .obj file.
  * @param mat      Material to apply to all triangles.
+ * @param scale    The factor to resize the loaded mesh.
  * @return hittable_list containing all triangles of the mesh.
  */
 hittable_list loadOBJ(const std::string& filename, std::shared_ptr<material> mat, double scale = 1.0);

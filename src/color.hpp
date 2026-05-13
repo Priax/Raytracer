@@ -66,6 +66,8 @@ public:
      * @brief Writes the color to an output stream in PPM format.
      * @param out The output stream.
      * @param pixel_color The color to write.
+     * @param _colorsQueue Thread-safe queue for SFML pixels.
+     * @param _colorsQueueMutex Mutex to protect the queue.
      */
     static void write_color(std::ostream &out, const color &pixel_color, std::shared_ptr<std::list<sf::Color>> _colorsQueue, std::shared_ptr<std::mutex> _colorsQueueMutex);
 

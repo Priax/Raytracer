@@ -187,7 +187,7 @@ EXCLUDE_SYMBOLS        =
 EXAMPLE_PATH           =
 EXAMPLE_PATTERNS       = *
 EXAMPLE_RECURSIVE      = NO
-IMAGE_PATH             =
+IMAGE_PATH             = raytracer_images
 INPUT_FILTER           =
 FILTER_PATTERNS        =
 FILTER_SOURCE_FILES    = NO
@@ -225,7 +225,12 @@ HTML_HEADER            =
 HTML_FOOTER            =
 HTML_STYLESHEET        =
 HTML_EXTRA_STYLESHEET  =
-HTML_EXTRA_FILES       =
+HTML_EXTRA_FILES       = ./raytracer_images/big_shadow.png \
+                         ./raytracer_images/10000_checker.png \
+                         ./raytracer_images/oriented_shadow.png \
+                         ./raytracer_images/cornell_teapot.png \
+                         ./raytracer_images/car.png \
+                         ./raytracer_images/pillar.png
 HTML_COLORSTYLE        = AUTO_LIGHT
 HTML_COLORSTYLE_HUE    = 220
 HTML_COLORSTYLE_SAT    = 100

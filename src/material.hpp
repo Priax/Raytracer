@@ -117,6 +117,8 @@ public:
     /**
      * @brief Constructs a dielectric material with a specified refraction index.
      * @param refraction_index The refraction index.
+     * @param a The albedo (color) of the glass.
+     * @param density The absorption density (Beer-Lambert).
      */
     dielectric(double refraction_index, const color& a, double density);
 
