@@ -27,7 +27,14 @@ void camera::render(const hittable& world, const hittable &lights) {
             for (int s_j = 0; s_j < sqrt_spp; s_j++) {
                 for (int s_i = 0; s_i < sqrt_spp; s_i++) {
                     ray r = get_ray(i, j, s_i, s_j);
-                    pixel_color += ray_color(r, max_depth, world, lights);
+                    color sample_color = ray_color(r, max_depth, world, lights);
+
+                    double max_energy = 10.0;
+                    if (sample_color.x() > max_energy || std::isnan(sample_color.x())) sample_color.e[0] = max_energy;
+                    if (sample_color.y() > max_energy || std::isnan(sample_color.y())) sample_color.e[1] = max_energy;
+                    if (sample_color.z() > max_energy || std::isnan(sample_color.z())) sample_color.e[2] = max_energy;
+
+                    pixel_color += sample_color;
                 }
             }
             buffer[j * image_width + i] = pixel_samples_scale * pixel_color;

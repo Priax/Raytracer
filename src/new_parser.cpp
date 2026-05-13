@@ -740,6 +740,44 @@ hittable_list newParser::setDataPrim(hittable_list world)
             }
         }
     }
+    
+    for (std::vector<pPointLight>::size_type i = 0; i != _lights.size(); i++) {
+        if (!_lights[i]._position_cylinder.type.empty()) {
+            world.add(std::make_shared<Cylinder>(
+                        point3(_lights[i]._position_cylinder.base_x, _lights[i]._position_cylinder.base_y, _lights[i]._position_cylinder.base_z),
+                        point3(_lights[i]._position_cylinder.position_x, _lights[i]._position_cylinder.position_y, _lights[i]._position_cylinder.position_z),
+                        _lights[i]._position_cylinder.radius, std::make_shared<diffuse_light>(color(_lights[i]._position_cylinder.color_r,
+                                _lights[i]._position_cylinder.color_g, _lights[i]._position_cylinder.color_b))));
+        }
+        if (!_lights[i]._position_cone.type.empty()) {
+            world.add(std::make_shared<Cone>(point3(_lights[i]._position_cone.position_x, _lights[i]._position_cone.position_y, _lights[i]._position_cone.position_z),
+                        _lights[i]._position_cone.radius, _lights[i]._position_cone._height,
+                        std::make_shared<diffuse_light>(color(_lights[i]._position_cone.color_r, _lights[i]._position_cone.color_g, _lights[i]._position_cone.color_b))));
+        }
+        if (!_lights[i]._position_sphere.type.empty()) {
+            world.add(std::make_shared<sphere>(point3(_lights[i]._position_sphere.position_x, _lights[i]._position_sphere.position_y, _lights[i]._position_sphere.position_z),
+                        _lights[i]._position_sphere.radius, std::make_shared<diffuse_light>(color(_lights[i]._position_sphere.color_r, _lights[i]._position_sphere.color_g, _lights[i]._position_sphere.color_b))));
+        }
+    }
+
+    for (const auto& dl : _dir_lights) {
+        vec3 dir(dl.dir_x, dl.dir_y, dl.dir_z);
+        dir = Vec3Utils::unit_vector(dir);
+
+        double sun_distance = 10000.0;
+        point3 sun_center = point3(0, 0, 0) - (dir * sun_distance);
+        double sun_radius = sun_distance * 0.004625;
+
+        double intensity_multiplier = (sun_distance * sun_distance) / (sun_radius * sun_radius * pi);
+        color physical_color(
+            dl.color_r * intensity_multiplier,
+            dl.color_g * intensity_multiplier,
+            dl.color_b * intensity_multiplier
+        );
+
+        auto mat = std::make_shared<diffuse_light>(physical_color);
+        world.add(std::make_shared<sphere>(sun_center, sun_radius, mat));
+    }
 
     return world;
 }

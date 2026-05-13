@@ -108,6 +108,7 @@ void Display::runPreview(bool &previewLowQuality, camera &realCamera, hittable_l
         std::clog.setstate(std::ios_base::failbit);
         auto preview = std::make_shared<camera>(realCamera);
         preview->samples_per_pixel = 10;
+        preview->max_depth = 5;
         preview->_colorsQueue = _colorsQueue;
         preview->_colorsQueueMutex = _colorsQueueMutex;
         _previewThread.reset(new std::thread([preview, &world, &lights]() {

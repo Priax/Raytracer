@@ -42,9 +42,13 @@ Everything is done via maths, we don't need a GUI or anything because the way it
     <img src="raytracer_images/oriented_shadow.png" alt="Oriented Shadow" style="width: 30%;">
 </div>
 
-<img src="raytracer_images/cornell_teapot.png" alt="A cornell box with multiple spheres (metallic) and a teapot (checker texture)" style="width: 50%;">
+<div style="display: flex; justify-content: space-around;">
+    <img src="raytracer_images/cornell_teapot.png" alt="A cornell box with multiple spheres (metallic) and a teapot (checker texture)">
+    <img src="raytracer_images/car.png" alt="Car, spring, pyramid and teapot with earth texture">
+    <img src="raytracer_images/pillar.png" alt="A test of textured balls in an enclosed environment">
+</div>
 
-<img src="raytracer_images/car.png" alt="Car, spring, pyramid and teapot with earth texture" style="width: 50%;">
+
 
 ## Features
 
