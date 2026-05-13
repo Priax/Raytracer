@@ -49,14 +49,14 @@ public:
     double translate_x = 0; /**< X-coordinate translation */
     double translate_y = 0; /**< Y-coordinate translation */
     double translate_z = 0; /**< Z-coordinate translation */
-    double shear_xy = 0.0;
-    double shear_xz = 0.0;
+    double shear_xy = 0.0; /**< Shear factor on XY plane */
+    double shear_xz = 0.0; /**< Shear factor on XZ plane */
     double shear_yx = 0.0;
     double shear_yz = 0.0;
     double shear_zx = 0.0;
     double shear_zy = 0.0;
-    mat4 transform_matrix;
-    bool has_matrix = false;
+    mat4 transform_matrix; /**< Custom 4x4 transformation matrix */
+    bool has_matrix = false; /**< Flag to prioritize the matrix over basic transformations */
     std::string type; /**< Type of the shape */
 };
 
@@ -173,13 +173,16 @@ public:
     double color_b;
 };
 
+/**
+ * @brief Configuration data for complex parametric surfaces (Torus, Möbius, etc.).
+ */
 struct pParametric : public IPrimitive {
-    std::string surface_type;   // "torus", "klein", "mobius", "wave", "spring"
-    double param1 = 1.0;        // R majeur (torus), amplitude (wave), …
-    double param2 = 0.3;        // r mineur (torus), fréquence (wave), …
-    double param3 = 0.0;        // usage libre selon le type
-    int    u_steps = 80;
-    int    v_steps = 80;
+    std::string surface_type;   /**< Type string: "torus", "klein", "mobius", "wave", "spring" */
+    double param1 = 1.0;        /**< Primary parameter (e.g., Major radius for torus) */
+    double param2 = 0.3;        /**< Secondary parameter (e.g., Minor radius for tube) */
+    double param3 = 0.0;        /**< Tertiary parameter or multiplier */
+    int    u_steps = 80;        /**< Mesh density along U axis */
+    int    v_steps = 80;        /**< Mesh density along V axis */
 };
 
 /**
@@ -270,8 +273,19 @@ public:
      */
     hittable_list setDataModels(hittable_list world);
 
+    /**
+     * @brief Parses parametric surfaces and generates their triangle meshes.
+     */
     void parseParametrics();
+
+    /**
+     * @brief Converts parsed parametric data into hittable surfaces in the world.
+     */
     hittable_list setDataParametrics(hittable_list world);
+
+    /**
+     * @brief Functional builder to define the mathematical equation of a surface.
+     */
     static std::shared_ptr<parametric_surface> buildParametricSurface(const pParametric& p, std::shared_ptr<material> mat);
 
     /**
@@ -280,91 +294,75 @@ public:
     void parseLights();
 
     /**
-     * @brief Creates a shape object.
-     * @param pos Position of the shape
-     * @param radius Radius of the shape
-     * @param material_ptr Pointer to the material of the shape
-     * @param prim Adress of the primitive for transformation matrix
-     * @return Shared pointer to the created shape
+     * @brief Creates a sphere object.
+     * @param pos Center position of the sphere.
+     * @param radius Radius of the sphere.
+     * @param material_ptr Material applied to the sphere.
+     * @param prim Reference to the primitive data for transformation processing (Matrix, Shear, etc.).
+     * @return Shared pointer to the created (and potentially transformed) sphere.
      */
     std::shared_ptr<hittable> createShape(point3 pos, double radius, std::shared_ptr<material> material_ptr, const IPrimitive& prim);
 
     /**
-     * @brief Creates a shape object with specified parameters.
-     * @param shape Type of the shape
-     * @param pos Position of the shape
-     * @param radius Radius of the shape
-     * @param height Height of the shape
-     * @param material_ptr Pointer to the material of the shape
-     * @param prim Adress of the primitive for transformation matrix
-     * @return Shared pointer to the created shape
+     * @brief Creates a cone or limited cone object.
+     * @param shape String identifier ("cones" or "limcones").
+     * @param pos Tip position of the cone.
+     * @param radius Base radius.
+     * @param height Total height of the cone.
+     * @param material_ptr Material applied to the cone.
+     * @param prim Reference for transformation processing.
      */
     std::shared_ptr<hittable> createShape(std::string shape, point3 pos, double radius, double height, std::shared_ptr<material> material_ptr, const IPrimitive& prim);
 
     /**
-     * @brief Creates a shape object with specified parameters.
-     * @param shape Type of the shape
-     * @param pos Position of the shape
-     * @param radius Radius of the shape
-     * @param height Height of the shape
-     * @param material_ptr Pointer to the material of the shape
-     * @param rotation Rotation of the shape
-     * @param rotation_type Type of rotation
-     * @param translation Translation of the shape
-     * @return Shared pointer to the created shape
+     * @brief Creates a cylinder or limited cylinder object.
+     * @param shape String identifier ("cylinders" or "limcylinders").
+     * @param base Center position of the bottom base.
+     * @param top Center position of the top base.
+     * @param radius Cylinder radius.
+     * @param material_ptr Material applied to the cylinder.
+     * @param prim Reference for transformation processing.
      */
     std::shared_ptr<hittable> createShape(std::string shape, point3 base, point3 top, double radius, std::shared_ptr<material> material_ptr, const IPrimitive& prim);
 
     /**
-     * @brief Creates a shape object with specified parameters.
-     * @param pos Position of the shape
-     * @param dir Direction of the shape
-     * @param rot Rotation of the shape
-     * @param material_ptr Pointer to the material of the shape
-     * @param rotation Rotation of the shape
-     * @param rotation_type Type of rotation
-     * @param translation Translation of the shape
-     * @return Shared pointer to the created shape
+     * @brief Creates a quad (plane) object.
+     * @param pos Origin point of the quad.
+     * @param dir First vector defining the plane side.
+     * @param rot Second vector defining the plane side.
+     * @param material_ptr Material applied to the quad.
+     * @param prim Reference for transformation processing.
      */
     std::shared_ptr<hittable> createShape(point3 pos, point3 dir, vec3 rot, std::shared_ptr<material> material_ptr, const IPrimitive& prim);
 
     /**
-     * @brief Creates a shape object with specified parameters.
-     * @param bot Bottom position of the shape
-     * @param top Top position of the shape
-     * @param material_ptr Pointer to the material of the shape
-     * @param rotation Rotation of the shape
-     * @param rotation_type Type of rotation
-     * @param translation Translation of the shape
-     * @return Shared pointer to the created shape
+     * @brief Creates an Axis-Aligned Bounding Box (AABB) / Cube.
+     * @param bot Minimum corner (coordinates).
+     * @param top Maximum corner (coordinates).
+     * @param material_ptr Material applied to the cube.
+     * @param prim Reference for transformation processing.
      */
     std::shared_ptr<hittable> createShape(point3 bot, point3 top, std::shared_ptr<material> material_ptr, const IPrimitive& prim);
 
     /**
-     * @brief Creates a shape object with specified parameters.
-     * @param down Bottom position of the shape
-     * @param left Left position of the shape
-     * @param right Right position of the shape
-     * @param material_ptr Pointer to the material of the shape
-     * @param rotation Rotation of the shape
-     * @param rotation_type Type of rotation
-     * @param translation Translation of the shape
-     * @return Shared pointer to the created shape
+     * @brief Creates a triangle object.
+     * @param down First vertex.
+     * @param left Second vertex.
+     * @param right Third vertex.
+     * @param material_ptr Material applied to the triangle.
+     * @param prim Reference for transformation processing.
      */
     std::shared_ptr<hittable> createShape(point3 down, point3 left, point3 right, std::shared_ptr<material> material_ptr, const IPrimitive& prim);
 
     /**
-     * @brief Creates a shape object with specified parameters.
-     * @param top Top position of the shape
-     * @param basis1 First basis position of the shape
-     * @param basis2 Second basis position of the shape
-     * @param basis3 Third basis position of the shape
-     * @param basis4 Fourth basis position of the shape
-     * @param material_ptr Pointer to the material of the shape
-     * @param rotation Rotation of the shape
-     * @param rotation_type Type of rotation
-     * @param translation Translation of the shape
-     * @return Shared pointer to the created shape
+     * @brief Creates a pyramid object.
+     * @param top Apex of the pyramid.
+     * @param basis1 First base vertex.
+     * @param basis2 Second base vertex.
+     * @param basis3 Third base vertex.
+     * @param basis4 Fourth base vertex.
+     * @param material_ptr Material applied to the pyramid.
+     * @param prim Reference for transformation processing.
      */
     std::shared_ptr<hittable> createShape(point3 top, point3 basis1, point3 basis2, point3 basis3, point3 basis4, std::shared_ptr<material> material_ptr, const IPrimitive& prim);
 
@@ -471,10 +469,18 @@ public:
     size_t getCameraSize(std::string element);
 
 private:
+    /**
+     * @brief Wraps a shape in a TransformNode if any transformation (matrix/shear/etc) is detected.
+     */
     std::shared_ptr<hittable> applyTransform(std::shared_ptr<hittable> shape, const IPrimitive &prim);
+
+    /**
+     * @brief Recursively builds a group of objects for the Scene Graph.
+     */
+    std::shared_ptr<hittable> buildGroup(const libconfig::Setting& group_setting, std::shared_ptr<material> inherited_mat = nullptr);
+
     void parseTransform(const libconfig::Setting& s, IPrimitive& prim);
     void parseColor(const libconfig::Setting& s, IPrimitive& prim);
-    std::shared_ptr<hittable> buildGroup(const libconfig::Setting& group_setting, std::shared_ptr<material> inherited_mat = nullptr);
 
     libconfig::Config &_cfg; /**< Reference to the libconfig configuration */
     libconfig::Setting &_root; /**< Reference to the root setting */
@@ -493,10 +499,8 @@ private:
     Primitives _primitives; /**< Collection of primitive shapes */
 
     std::vector <pPointLight> _lights; /**< Collection of light sources */
-    std::vector <pDirLight> _dir_lights; // NOUVEAU : Collection des lumières directionnelles
-
-    std::map<std::string, std::shared_ptr<hittable>> _mesh_cache;
-
+    std::vector <pDirLight> _dir_lights; /**< Collection of directional light sources (Sun/Moon) */
+    std::map<std::string, std::shared_ptr<hittable>> _mesh_cache; /**< Cache to avoid re-parsing the same .obj multiple times */
 };
 
 #endif /* !NEW_PARSER_HPP_ */
