@@ -22,6 +22,9 @@ void camera::render(const hittable& world, const hittable &lights) {
               << " spp=" << sqrt_spp * sqrt_spp << " depth=" << max_depth << "\n" << std::flush;
     #pragma omp parallel for schedule(dynamic, 1)
     for (int j = 0; j < image_height; j++) {
+        if (cancel_render != nullptr && cancel_render->load() == true) {
+            continue;
+        }
         for (int i = 0; i < image_width; i++) {
             color pixel_color(0, 0, 0);
             for (int s_j = 0; s_j < sqrt_spp; s_j++) {
@@ -62,11 +65,12 @@ void camera::render(const hittable& world, const hittable &lights) {
         std::clog << "\rRendering... " << (done * 100 / image_height) << "%" << std::flush;
     }
 
-    std::cout << "P3\n" << image_width << ' ' << image_height << "\n255\n";
-    for (const auto& c : buffer)
-        color::write_color(std::cout, c, nullptr, nullptr);
-
-    std::clog << "\r\033[32mDone.\033[0m                          \n";
+    if (cancel_render == nullptr || !cancel_render->load()) {
+        std::cout << "P3\n" << image_width << ' ' << image_height << "\n255\n";
+        for (const auto& c : buffer)
+            color::write_color(std::cout, c, nullptr, nullptr);
+        std::clog << "\r\033[32mDone.\033[0m                           \n";
+    }
 }
 
 void camera::initialize()

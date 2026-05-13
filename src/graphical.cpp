@@ -8,8 +8,8 @@
 #include "graphical.hpp"
 
 Display::Display(const std::size_t width, const std::size_t height,
-                std::shared_ptr<std::list<sf::Color>> &colorsQueue,
-                std::shared_ptr<std::mutex> &colorsQueueMutex)
+                 std::shared_ptr<std::list<sf::Color>> &colorsQueue,
+                 std::shared_ptr<std::mutex> &colorsQueueMutex)
 {
     _image.create(width, height, sf::Color(0, 0, 0));
     _height = height;
@@ -45,7 +45,6 @@ void Display::displayLoop()
     std::size_t lastPixelSetY = 0;
     bool endLoop = false;
 
-
     _renderWindow = std::unique_ptr<sf::RenderWindow>(
         new sf::RenderWindow(sf::VideoMode (_width, _height), "Raytracer Preview", sf::Style::Close|sf::Style::Titlebar));
     if (!_imageTexture.loadFromImage(_image)) {
@@ -63,6 +62,8 @@ void Display::displayLoop()
             if (sf::Keyboard::isKeyPressed(sf::Keyboard::Escape))
                 endLoop = true;
         }
+        if (_cancel_render != nullptr && _cancel_render->load() == true)
+            endLoop = true;
         if (endLoop)
             break;
         _renderWindow->clear(sf::Color::White);
@@ -86,10 +87,10 @@ int Display::searchGraphicalParam(char **argv, bool &launchPreview, bool &previe
         return 0;
     if (argc == 3) {
         std::string param = argv[2];
-        if (param.compare("-G--low") == 0) { /*low quality preview*/
+        if (param.compare("-G--low") == 0) { 
             launchPreview = true;
             previewLowQuality = true;
-        } else if (param.compare("-G") == 0) { /*-G for --Graphical*/
+        } else if (param.compare("-G") == 0) { 
             launchPreview = true;
         } else {
             std::clog << "Read the documentation for help."<< std::endl;
@@ -106,24 +107,31 @@ void Display::runPreview(bool &previewLowQuality, camera &realCamera, hittable_l
     if (previewLowQuality) {
         std::cout.setstate(std::ios_base::failbit);
         std::clog.setstate(std::ios_base::failbit);
+
         auto preview = std::make_shared<camera>(realCamera);
         preview->samples_per_pixel = 10;
-        preview->max_depth = 5;
+        preview->max_depth = 2;
+        preview->cancel_render = realCamera.cancel_render;
+
         preview->_colorsQueue = _colorsQueue;
         preview->_colorsQueueMutex = _colorsQueueMutex;
+
         _previewThread.reset(new std::thread([preview, &world, &lights]() {
             preview->render(world, lights);
         }));
-    } else {
-        realCamera._colorsQueue = _colorsQueue;
-        realCamera._colorsQueueMutex = _colorsQueueMutex;
     }
+
     std::thread displayThread(&Display::displayLoop, this);
+
     if (_previewThread && _previewThread->joinable()) {
         _previewThread->join();
         std::cout.clear();
         std::clog.clear();
     }
-    realCamera.render(world, lights);
+    realCamera._colorsQueue = _colorsQueue;
+    realCamera._colorsQueueMutex = _colorsQueueMutex;
+    if (_cancel_render == nullptr || !_cancel_render->load()) {
+        realCamera.render(world, lights);
+    }
     displayThread.join();
 }

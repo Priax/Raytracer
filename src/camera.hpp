@@ -36,6 +36,7 @@ public:
 
     std::shared_ptr<std::list<sf::Color>> _colorsQueue = nullptr; /* Initialize list of colors */
     std::shared_ptr<std::mutex> _colorsQueueMutex = std::make_shared<std::mutex>(); /* Queue of color data */
+    std::atomic<bool> *cancel_render = nullptr;
 
     /**
      * @brief Renders the scene using the provided world and lights.
