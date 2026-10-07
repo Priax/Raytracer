@@ -1,0 +1,8 @@
+$ OMP_SCHEDULE=static ./raytracer showcase_sched.cfg
+loadOBJ: teapot/teapot.obj → 15704 triangles
+loadOBJ: parsed 15704 triangles in 0.0177653s
+loadOBJ: building LinearBVH...
+loadOBJ: LinearBVH done in 0.028483s
+Rendering 800x800 spp=100 depth=8
+Done.                           
+wall=131.84 user=491.74 sys=0.40

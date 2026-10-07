@@ -1,0 +1,8 @@
+$ OMP_SCHEDULE=static ./raytracer bunny_mid.cfg
+loadOBJ: bunny.obj → 144046 triangles
+loadOBJ: parsed 144046 triangles in 0.211686s
+loadOBJ: building LinearBVH...
+loadOBJ: LinearBVH done in 0.317567s
+Rendering 400x300 spp=16 depth=3
+Done.                           
+wall=122.73 user=264.49 sys=0.27

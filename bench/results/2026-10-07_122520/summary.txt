@@ -1,0 +1,46 @@
+RAYTRACER BENCHMARK
+------------------------------------------------------------------------
+  date       2026-10-07 13:12
+  commit     8133e56
+  cpu        11th Gen Intel(R) Core(TM) i5-1155G7 @ 2.50GHz (8 threads)
+  build      g++ 16.2.1 20260819 (Red Hat 16.2.1-2), -O2 -fopenmp
+  profil     complet
+  runs       3 par configuration, temps réel (wall clock)
+
+1. BVH vs LISTE BRUTE
+------------------------------------------------------------------------
+  teapot - 15704 triangles, 200x150, 16 spp, depth 8
+                      moyenne        min        max écart-type
+  avec BVH             1.37 s     1.30 s     1.44 s    0.06 s  
+  sans BVH            63.51 s    62.36 s    64.64 s    0.93 s  
+  => BVH x46.4 plus rapide
+
+  bunny - 144046 triangles, 100x75, 16 spp, depth 8
+                      moyenne        min        max écart-type
+  avec BVH             4.40 s     4.35 s     4.46 s    0.04 s  (dont 0.56s chargement + construction BVH)
+  sans BVH           187.24 s   182.22 s   194.84 s    5.47 s  
+  => BVH x42.6 plus rapide
+
+2. OPENMP SCHEDULE (boucle sur les lignes)
+------------------------------------------------------------------------
+  showcase (scène d'origine) - 800x800, 100 spp, depth 8
+                      moyenne        min        max écart-type
+  static             132.38 s   131.84 s   133.24 s    0.61 s  cpu user 500.5s
+  dynamic,1           90.92 s    89.25 s    91.97 s    1.20 s  cpu user 690.2s
+  => dynamic x1.5 plus rapide
+
+  bunny (scène d'origine) - 800x600, 9 spp, depth 3
+                      moyenne        min        max écart-type
+  static             251.21 s   245.57 s   261.45 s    7.26 s  cpu user 562.3s
+  dynamic,1          114.90 s   112.83 s   116.96 s    1.69 s  cpu user 869.4s
+  => dynamic x2.2 plus rapide
+
+RÉSUMÉ
+------------------------------------------------------------------------
+  test                                    avant     après      gain
+  teapot: sans BVH -> BVH                63.51s      1.37s     x46.4
+  bunny: sans BVH -> BVH                187.24s      4.40s     x42.6
+  showcase: static -> dynamic,1         132.38s     90.92s      x1.5
+  bunny: static -> dynamic,1            251.21s    114.90s      x2.2
+
+  logs bruts : bench/results/2026-10-07_122520/raw/

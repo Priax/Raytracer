@@ -1,0 +1,8 @@
+$ NO_BVH=1 ./raytracer teapot_small.cfg
+loadOBJ: teapot/teapot.obj → 15704 triangles
+loadOBJ: parsed 15704 triangles in 0.0186701s
+loadOBJ: building LinearBVH...
+loadOBJ: LinearBVH done in 0.000273473s
+Rendering 160x120 spp=4 depth=5
+Done.                           
+wall=11.08 user=78.26 sys=0.16

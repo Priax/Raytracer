@@ -1,0 +1,8 @@
+$ NO_BVH=1 ./raytracer bunny_bench.cfg
+loadOBJ: bunny.obj → 144046 triangles
+loadOBJ: parsed 144046 triangles in 0.228988s
+loadOBJ: building LinearBVH...
+loadOBJ: LinearBVH done in 0.00303306s
+Rendering 100x75 spp=16 depth=8
+Done.                           
+wall=182.22 user=1328.64 sys=0.71
